@@ -1,0 +1,3 @@
+struct Cartridge {
+    type: String,
+}

@@ -1,0 +1,11 @@
+[package]
+name = "gb"
+description = "A GameBoy emulator"
+version = "0.1.0"
+repository = "https://github.com/bfabio/gb"
+authors = ["Fabio Bonelli <fb@fabiobonelli.it>"]
+license = "GPL-3.0-or-later"
+edition = "2018"
+
+[dependencies]
+sdl2 = "0.32"
