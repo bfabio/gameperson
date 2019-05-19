@@ -1,15 +1,31 @@
-use std::fmt;
 use std::cell::RefCell;
+use std::fmt;
 use std::rc::Rc;
 
-use sdl2::pixels::Color;
 use sdl2::render::Canvas;
+use sdl2::render::Texture;
 use sdl2::video::Window;
-// use sdl2::event::Event;
-// use sdl2::keyboard::Keycode;
-use sdl2::rect::Point;
 
 use crate::memory::Memory;
+
+const BYTES_PER_PIXEL: u8 = 4; // RGBA8888
+const BUFFER_HEIGHT: u16 = 256;
+const BUFFER_WIDTH: u16 = 256;
+
+const BUFFER_SIZE: usize =
+    (BUFFER_HEIGHT as usize * BUFFER_WIDTH as usize * BYTES_PER_PIXEL as usize);
+
+pub struct GpuBuffer {
+    pub buffer: [u8; BUFFER_SIZE],
+}
+
+impl GpuBuffer {
+    pub fn new() -> Self {
+        Self {
+            buffer: [0; BUFFER_SIZE],
+        }
+    }
+}
 
 pub struct Gpu {
     memory: Rc<RefCell<Memory>>,
@@ -17,35 +33,38 @@ pub struct Gpu {
 
 impl Gpu {
     pub fn new(memory: Rc<RefCell<Memory>>) -> Gpu {
-        Gpu {
-            memory,
-        }
+        Gpu { memory }
     }
 
-    pub fn display(&self, canvas: &mut Canvas<Window>) {
+    pub fn display(
+        &self,
+        canvas: &mut Canvas<Window>,
+        texture: &mut Texture,
+        buffer: &mut GpuBuffer,
+    ) {
         let memory = self.memory.borrow();
 
-        let mut tile_x = 0;
-        let mut tile_y = 0;
+        let mut tile_x: u8;
+        let mut tile_y: u8;
 
         // BG Map Data 1
-        for tile_addr in 0x9800..=0x9bff {
+        for (i, tile_addr) in (0x9800..=0x9bff).enumerate() {
             let tile_num = memory.load(tile_addr);
 
-            self.print_tile(
-                self.get_tile(tile_num),
-                canvas,
-                tile_x,
-                tile_y
-            );
+            tile_x = (i % 32) as u8;
+            tile_y = (i / 32) as u8;
 
-            if tile_x < 31 {
-                tile_x += 1;
-            } else {
-                tile_x = 0;
-                tile_y += 1;
-            }
+            self.print_tile(self.get_tile(tile_num), &mut buffer.buffer, tile_x, tile_y);
         }
+        texture
+            .update(
+                None,
+                &buffer.buffer,
+                BUFFER_WIDTH as usize * BYTES_PER_PIXEL as usize,
+            )
+            .unwrap();
+        canvas.copy(&texture, None, None).unwrap();
+
         canvas.present();
     }
 
@@ -67,30 +86,40 @@ impl Gpu {
         tile
     }
 
-    fn print_tile(&self, tile: [u8; 16], canvas: &mut Canvas<Window>, x: u8, y: u8) {
-        assert!(x <= 31);
-        assert!(y <= 31);
+    fn print_tile(&self, tile: [u8; 16], buffer: &mut [u8], x: u8, y: u8) {
+        assert!(x < 32);
+        assert!(y < 32);
 
-        for line in 0..=7 {
-            let b = (tile[line * 2], tile[1 + line * 2]);
+        let mut xx;
+        let mut yy;
+        for row in 0..=7 {
+            let b = (tile[row * 2], tile[1 + row * 2]);
 
-            for row in (0..=7).rev() {
-                if (b.0 & (1 << row)).count_ones() == 0 {
-                    canvas.set_draw_color(Color::RGB(0xff, 0xff, 0xff));
+            for col in (0..=7).rev() {
+                let color = if (b.0 & (1 << col)).count_ones() == 0 {
+                    (0xff, 0xff, 0xff, 0xff)
                 } else {
-                    canvas.set_draw_color(Color::RGB(0, 0, 0));
-                }
+                    (0xff, 0x00, 0x00, 0x00)
+                };
 
-                let xx = x as i32 * 8 + (row as i8 - 7).abs() as i32;
-                let yy = y as i32 * 8 + line as i32;
-                canvas.draw_point(Point::new(xx, yy)).unwrap();
+                xx = x as i32 * 8 + (col as i8 - 7).abs() as i32;
+                yy = (y as i32 * 8) + row as i32;
+
+                let index =
+                    (xx as usize + yy as usize * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
+
+                // 4 bytes per pixel
+                buffer[index] = color.0;
+                buffer[index + 1] = color.1;
+                buffer[index + 2] = color.2;
+                buffer[index + 3] = color.3;
             }
         }
     }
 }
 
 impl<'a> fmt::Display for Gpu {
-     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "abc")
-     }
+    }
 }

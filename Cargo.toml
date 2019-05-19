@@ -9,3 +9,4 @@ edition = "2018"
 
 [dependencies]
 sdl2 = "0.32"
+rand = "*"

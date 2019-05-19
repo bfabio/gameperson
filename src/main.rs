@@ -5,8 +5,6 @@
  clippy::cargo,
 )]
 
-extern crate sdl2;
-
 mod cpu;
 mod gpu;
 mod input;
@@ -25,6 +23,8 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::surface::Surface;
+
+use rand::prelude::*;
 
 use memory::Rom;
 use memory::Vram;
@@ -126,13 +126,9 @@ fn main() -> Result<(), Box<error::Error>> {
         .map_err(|e| e.to_string())?;
 
     let mut canvas = window.into_canvas().present_vsync().build().map_err(|e| e.to_string())?;
+    let creator = canvas.texture_creator();
+    let mut texture = creator.create_texture_target(PixelFormatEnum::RGBA8888, 256, 256)?;
 
-    let mut data: [u8; 256 * 256] = [0; 256 * 256];
-
-    let masks = PixelFormatEnum::RGB24.into_masks().unwrap();
-    let surface = Surface::from_data(&mut data, 256, 256, 4*256, PixelFormatEnum::RGB24).unwrap();
-
-    canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
 
     canvas.present();
@@ -140,6 +136,7 @@ fn main() -> Result<(), Box<error::Error>> {
     let mut event_pump = sdl_context.event_pump()?;
 
     let gpu = gpu::Gpu::new(Rc::clone(&mem));
+    let mut gpu_buffer = gpu::GpuBuffer::new();
 
     let mut _step = false;
     'running: loop {
@@ -159,7 +156,7 @@ fn main() -> Result<(), Box<error::Error>> {
         //}
         }
 
-        gpu.display(&mut canvas);
+        gpu.display(&mut canvas, &mut texture, &mut gpu_buffer);
 
         match Input::new(&mut event_pump) {
             Some(Input::Joypad(JoypadButton::Up)) => println!("UP"),
