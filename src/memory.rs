@@ -4,6 +4,8 @@ use std::rc::Rc;
 use std::fmt;
 use std::ops::Range;
 
+use crate::gpu::Gpu;
+
 ///!  0x0000              0x4000             0x8000                                 0xffff
 ///!    ↑                   ↑                  ↑                                      ↑
 ///!    +--+-+---------------------------------+-------+---+-------+--------+----+----+
@@ -79,7 +81,6 @@ use std::ops::Range;
 ///!    viewport that can be scrolled around the 32x32 tile (256x256 pixel) background
 ///!    area in video memory.
 
-
 ///!    0x9c00-0x9bff (BG Map Data 2)
 ///!    ===========================
 ///!    This area is just a second background map area like the previous one. To
@@ -106,7 +107,7 @@ pub trait Region {
 }
 
 pub enum AddressSpaceAction {
-    Unmap(u16)
+    Unmap(u16),
 }
 
 pub struct Rom {
@@ -114,7 +115,9 @@ pub struct Rom {
 }
 
 impl Rom {
-    pub fn new(mem: Vec<u8>) -> Self { Self { mem } }
+    pub fn new(mem: Vec<u8>) -> Self {
+        Self { mem }
+    }
 }
 
 impl Region for Rom {
@@ -133,12 +136,14 @@ impl Region for Rom {
 
 pub struct IORegisters {
     mem: [u8; 0x7f],
+    gpu: Rc<RefCell<Gpu>>,
 }
 
 impl IORegisters {
-    pub fn new() -> Self {
+    pub fn new(gpu: Rc<RefCell<Gpu>>) -> Self {
         IORegisters {
             mem: [0; 0x7f],
+            gpu,
         }
     }
 }
@@ -147,8 +152,6 @@ impl Region for IORegisters {
     // Usually at 0xff00 to 0xff7f
 
     fn read(&self, address: u16) -> u8 {
-        print!("(Fake read from I/O register at {:#06x}) ", address);
-
         match address {
             // 0xff42 - SCY - Scroll Y
             // 0xff43 - SCX - Scroll X
@@ -158,11 +161,11 @@ impl Region for IORegisters {
             // Values in range from 0-255 may be used for X/Y each, the video
             // controller automatically wraps back to the upper (left) position in
             // BG map when drawing exceeds the lower (right) border of the BG map area.
-            // 0x42 => {
+            // // 0x43 => {
             // }
-            // 0x43 => {
-            // }
-
+            0x42 => {
+                self.gpu.borrow().scy
+            }
             // 0xff44: LY - LCDC Y-Coordinate
             // Indicates the vertical line to which the present data is
             // transferred to the LCD Driver.
@@ -172,28 +175,43 @@ impl Region for IORegisters {
             //
             // Writing will reset the counter.
             0x44 => {
-                println!("LCDC Y-Coordinate");
-                144
+                let ly = self.gpu.borrow().ly;
+
+                ly
             }
             _ => {
+                print!("(Fake read from I/O register at {:#06x}) ", address);
                 0x01
             }
         }
     }
     fn write(&mut self, address: u16, value: u8) -> Option<AddressSpaceAction> {
-        println!("(Fake write to I/O register at {:#06x} ({:#04x})) ", address, value);
-
         match address {
             // 0xff40: LCDC - LCD Control (R/W)
             0x40 => {
-                println!("LCD Control {:b}", value);
+                None
+            }
+            // 0xff42 - SCY - Scroll Y
+            // 0xff43 - SCX - Scroll X
+            // Specifies the position in the 256x256 pixels BG map (32x32 tiles)
+            // which is to be displayed at the upper/left LCD display position.
+            //
+            // Values in range from 0-255 may be used for X/Y each, the video
+            // controller automatically wraps back to the upper (left) position in
+            // BG map when drawing exceeds the lower (right) border of the BG map area.
+            // 0x43 => {
+            // }
+            0x42 => {
+                self.gpu.borrow_mut().scy = value;
                 None
             }
             // 0xff50: Unmap the boot ROM (TODO: Find the documentation)
-            0x50 => {
-                Some(AddressSpaceAction::Unmap(0x0000))
-            }
+            0x50 => Some(AddressSpaceAction::Unmap(0x0000)),
             _ => {
+                println!(
+                    "(Fake write to I/O register at {:#06x} ({:#04x})) ",
+                    address, value
+                );
                 self.mem[address as usize] = value;
                 None
             }
@@ -206,11 +224,13 @@ impl Region for IORegisters {
 }
 
 pub struct Vram {
-    mem: [u8; 0x2000] // 8KiB
+    mem: [u8; 0x2000], // 8KiB
 }
 
 impl Vram {
-    pub fn new() -> Self { Vram { mem: [0; 0x2000] } }
+    pub fn new() -> Self {
+        Vram { mem: [0; 0x2000] }
+    }
 }
 
 impl Region for Vram {
@@ -224,8 +244,12 @@ impl Region for Vram {
         self.mem[address as usize]
     }
 
-    fn write(&mut self, address: u16, value: u8) -> Option<AddressSpaceAction>{
-        println!("(Write to VRAM at {:#06x} ({:#04x}))", address + 0x8000, value);
+    fn write(&mut self, address: u16, value: u8) -> Option<AddressSpaceAction> {
+        /*println!(
+            "(Write to VRAM at {:#06x} ({:#04x}))",
+            address + 0x8000,
+            value
+        );*/
 
         self.mem[address as usize] = value;
         None
@@ -275,10 +299,21 @@ impl Memory {
     }
 
     pub fn map(&mut self, address: u16, region: Box<dyn Region>) {
-        let range = Range { start: address, end: address + region.len() as u16 };
-        println!("Mapping {:#06x}:{:#06x}, size: {}", range.start, range.end, region.len());
+        let range = Range {
+            start: address,
+            end: address + region.len() as u16,
+        };
+        println!(
+            "Mapping {:#06x}:{:#06x}, size: {}",
+            range.start,
+            range.end,
+            region.len()
+        );
 
-        let mapping = Mapping { address_range: range, region };
+        let mapping = Mapping {
+            address_range: range,
+            region,
+        };
 
         self.mappings.push(mapping);
     }
@@ -291,30 +326,32 @@ impl Memory {
     pub fn load(&self, address: usize) -> u8 {
         match self.mapping(address) {
             Some(mapping) => {
-                return mapping.region.read(address as u16 - mapping.address_range.start);
+                return mapping
+                    .region
+                    .read(address as u16 - mapping.address_range.start);
             }
-            _ => {},
+            _ => {}
         }
 
         match address {
             // Boot ROM
-            (0x0000..=0x00ff) => {
-                self.cartridge[address]
-            }
-            (0x0100..=0x0103) => {
-                0x00
-            }
+            (0x0000..=0x00ff) => self.cartridge[address],
+            (0x0100..=0x0103) => 0x00,
             // Cartridge ROM
             (0x0104..=0x7fff) => {
                 if address <= 0x0133 {
                     let nintendo_logo = [
-                        0xce, 0xed, 0x66, 0x66, 0xcc, 0x0d, 0x00, 0x0b, 0x03, 0x73,
-                        0x00, 0x83, 0x00, 0x0c, 0x00, 0x0d, 0x00, 0x08, 0x11, 0x1f,
-                        0x88, 0x89, 0x00, 0x0e, 0xdc, 0xcc, 0x6e, 0xe6, 0xdd, 0xdd,
-                        0xd9, 0x99, 0xbb, 0xbb, 0x67, 0x63, 0x6e, 0x0e, 0xec, 0xcc,
-                        0xdd, 0xdc, 0x99, 0x9f, 0xbb, 0xb9, 0x33, 0x3e];
+                        0xce, 0xed, 0x66, 0x66, 0xcc, 0x0d, 0x00, 0x0b, 0x03, 0x73, 0x00, 0x83,
+                        0x00, 0x0c, 0x00, 0x0d, 0x00, 0x08, 0x11, 0x1f, 0x88, 0x89, 0x00, 0x0e,
+                        0xdc, 0xcc, 0x6e, 0xe6, 0xdd, 0xdd, 0xd9, 0x99, 0xbb, 0xbb, 0x67, 0x63,
+                        0x6e, 0x0e, 0xec, 0xcc, 0xdd, 0xdc, 0x99, 0x9f, 0xbb, 0xb9, 0x33, 0x3e,
+                    ];
 
-                    println!("ADDR: {:#06x} value: {:#04x}", address, nintendo_logo[address - 0x0104]);
+                    println!(
+                        "ADDR: {:#06x} value: {:#04x}",
+                        address,
+                        nintendo_logo[address - 0x0104]
+                    );
                     return nintendo_logo[address - 0x0104];
                 }
                 // Happens with the boot ROM which is just 256 bytes.
@@ -335,34 +372,33 @@ impl Memory {
             // Zero Page
             (0xff80..=0xfffe) => self.zero_page[address - 0xff80],
 
-            _ => panic!("Unsupported load from address {:#06x}", address)
+            _ => panic!("Unsupported load from address {:#06x}", address),
         }
     }
 
     fn mapping(&self, address: usize) -> Option<&Mapping> {
         let addr = address as u16;
 
-         self.mappings
+        self.mappings
             .iter()
-            .find(|m| {
-                m.address_range.start <= addr && m.address_range.end > addr
-            })
+            .find(|m| m.address_range.start <= addr && m.address_range.end > addr)
     }
 
     fn mapping_mut(&mut self, address: usize) -> Option<&mut Mapping> {
         let addr = address as u16;
 
-         self.mappings
+        self.mappings
             .iter_mut()
-            .find(|m| {
-                m.address_range.start <= addr && m.address_range.end > addr
-            })
+            .find(|m| m.address_range.start <= addr && m.address_range.end > addr)
     }
 
     pub fn write(&mut self, address: usize, value: u8) {
         match self.mapping_mut(address) {
             Some(mapping) => {
-                match mapping.region.write(address as u16 - mapping.address_range.start, value) {
+                match mapping
+                    .region
+                    .write(address as u16 - mapping.address_range.start, value)
+                {
                     Some(AddressSpaceAction::Unmap(u)) => self.unmap(u),
                     _ => {}
                 }

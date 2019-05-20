@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
+use sdl2::rect::Rect;
 use sdl2::render::Canvas;
 use sdl2::render::Texture;
 use sdl2::video::Window;
@@ -29,43 +30,74 @@ impl GpuBuffer {
 
 pub struct Gpu {
     memory: Rc<RefCell<Memory>>,
+
+    // The current vertical scanline being drawn.
+    //
+    // It can hold any value between 0 through 153.
+    // The values between 144 and 153 indicate the V-Blank period.
+    //
+    // Writing will reset the counter.
+    pub ly: u8,
+
+    // The Y position in the 256x256 pixels BG map (32x32 tiles)
+    // which is to be displayed at the upper/left LCD display position.
+    pub scy: u8,
+
+    // The X position in the 256x256 pixels BG map (32x32 tiles)
+    // which is to be displayed at the upper/left LCD display position.
+    pub scx: u8,
 }
 
 impl Gpu {
     pub fn new(memory: Rc<RefCell<Memory>>) -> Gpu {
-        Gpu { memory }
+        Gpu {
+            memory,
+            ly: 0,
+            scy: 0,
+            scx: 0,
+        }
     }
 
     pub fn display(
-        &self,
+        &mut self,
         canvas: &mut Canvas<Window>,
         texture: &mut Texture,
         buffer: &mut GpuBuffer,
     ) {
-        let memory = self.memory.borrow();
+        if self.ly == 0 {
+            let memory = self.memory.borrow();
 
-        let mut tile_x: u8;
-        let mut tile_y: u8;
+            let mut tile_x: u8;
+            let mut tile_y: u8;
 
-        // BG Map Data 1
-        for (i, tile_addr) in (0x9800..=0x9bff).enumerate() {
-            let tile_num = memory.load(tile_addr);
+            // BG Map Data 1
+            for (i, tile_addr) in (0x9800..=0x9bff).enumerate() {
+                let tile_num = memory.load(tile_addr);
 
-            tile_x = (i % 32) as u8;
-            tile_y = (i / 32) as u8;
+                tile_x = (i % 32) as u8;
+                tile_y = (i / 32) as u8;
 
-            self.print_tile(self.get_tile(tile_num), &mut buffer.buffer, tile_x, tile_y);
+                self.print_tile(self.get_tile(tile_num), &mut buffer.buffer, tile_x, tile_y);
+            }
+            texture
+                .update(
+                    None,
+                    &buffer.buffer,
+                    BUFFER_WIDTH as usize * BYTES_PER_PIXEL as usize,
+                )
+                .unwrap();
         }
-        texture
-            .update(
-                None,
-                &buffer.buffer,
-                BUFFER_WIDTH as usize * BYTES_PER_PIXEL as usize,
-            )
-            .unwrap();
-        canvas.copy(&texture, None, None).unwrap();
 
-        canvas.present();
+        // VBlank
+        if self.ly == 144 {
+            let scanline_src = Rect::new(0, self.scy as i32, 160, 144);
+
+            canvas.copy(&texture, scanline_src, None).unwrap();
+
+            canvas.present();
+        }
+
+        self.ly = self.ly.wrapping_add(1);
     }
 
     fn get_tile(&self, tile_num: u8) -> [u8; 16] {

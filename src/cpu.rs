@@ -640,7 +640,32 @@ impl Cpu {
                 match (opcode & 0b0011_1000) >> 3 {
                     0 => println!("ADD A, opcode"),
                     1 => println!("ADC A, opcode"),
-                    2 => println!("SUB opcode"),
+                    2 => {
+                        // SUB r8
+                        // Subtract r8 from A.
+                        //
+                        // flags:
+                        // Z: Set if result is zero
+                        // N: 1
+                        // H: Set if no borrow from bit 4
+                        // C: Set if borrow
+
+                        let reg_index = opcode & 0b0111;
+                        let location = self.index(reg_index);
+
+                        self.regs.a = self.regs.a.wrapping_sub(
+                            location.load8(&self.regs, &memory)
+                        );
+
+                        self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
+                        self.regs.set_flag(SUBTRACT_FLAG, true);
+
+                        // XXX
+                        // self.regs.set_flag(HALF_CARRY_FLAG, true);
+                        // self.regs.set_flag(CARRY_FLAG, true);
+
+                        println!("SUB {}", location);
+                    }
                     3 => println!("SUB A, opcode"),
                     4 => println!("AND opcode"),
                     5 => {
