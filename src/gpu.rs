@@ -1,11 +1,16 @@
 use std::cell::RefCell;
 use std::fmt;
+use std::io::Write;
 use std::rc::Rc;
 
 use sdl2::rect::Rect;
 use sdl2::render::Canvas;
 use sdl2::render::Texture;
 use sdl2::video::Window;
+
+use termion::clear;
+use termion::color;
+use termion::cursor;
 
 use crate::memory::Memory;
 
@@ -58,11 +63,12 @@ impl Gpu {
         }
     }
 
-    pub fn display(
+    pub fn display<W: Write>(
         &mut self,
-        canvas: &mut Canvas<Window>,
-        texture: &mut Texture,
+        /*canvas: &mut Canvas<Window>,
+        texture: &mut Texture,*/
         buffer: &mut GpuBuffer,
+        screen: &mut W,
     ) {
         if self.ly == 0 {
             let memory = self.memory.borrow();
@@ -79,22 +85,26 @@ impl Gpu {
 
                 self.print_tile(self.get_tile(tile_num), &mut buffer.buffer, tile_x, tile_y);
             }
+            /*
             texture
                 .update(
                     None,
                     &buffer.buffer,
                     BUFFER_WIDTH as usize * BYTES_PER_PIXEL as usize,
                 )
-                .unwrap();
+                .unwrap(); */
         }
 
         // VBlank
         if self.ly == 144 {
-            let scanline_src = Rect::new(0, self.scy as i32, 160, 144);
+            // let scanline_src = Rect::new(0, self.scy as i32, 160, 144);
 
-            canvas.copy(&texture, scanline_src, None).unwrap();
+            let offset = self.scy as u32 * BYTES_PER_PIXEL as u32 * BUFFER_WIDTH as u32;
+            Gpu::term_out(screen, &buffer, offset);
 
-            canvas.present();
+            // canvas.copy(&texture, scanline_src, None).unwrap();
+
+            // canvas.present();
         }
 
         self.ly = self.ly.wrapping_add(1);
@@ -147,6 +157,39 @@ impl Gpu {
                 buffer[index + 3] = color.3;
             }
         }
+    }
+
+    fn term_out<W: Write>(screen: &mut W, buffer: &GpuBuffer, offset: u32) {
+        let buf = buffer.buffer;
+
+        let mut frame = String::new();
+        for x in 0..144 {
+            // 160 / 2, printing two lines at a time
+            for y in 0..70 {
+                let yy = y * 2;
+                let index = ((x as usize + yy as usize * BUFFER_WIDTH as usize)
+                    * BYTES_PER_PIXEL as usize)
+                    + offset as usize;
+
+                // 4 bytes per pixel
+                // ALPHA buffer[index]
+                let (r0, g0, b0) = (buf[index + 1], buf[index + 2], buf[index + 3]);
+
+                let index = ((x as usize + (yy as usize + 1) * BUFFER_WIDTH as usize)
+                    * BYTES_PER_PIXEL as usize)
+                    + offset as usize;
+
+                let (r1, g1, b1) = (buf[index + 1], buf[index + 2], buf[index + 3]);
+
+                frame.push_str(&format!(
+                    "{}{}{}▄",
+                    cursor::Goto(1 + x, 1 + 3 + y),
+                    color::Bg(color::Rgb(r0, g0, b0)),
+                    color::Fg(color::Rgb(r1, g1, b1)),
+                ));
+            }
+        }
+        write!(screen, "{}", frame);
     }
 }
 

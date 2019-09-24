@@ -14,7 +14,9 @@ use std::env;
 use std::error;
 use std::fs;
 use std::io;
+use std::io::{Write, stdin, stdout};
 use std::cell::RefCell;
+use std::fmt::Display;
 use std::rc::Rc;
 use std::str;
 
@@ -23,6 +25,16 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::surface::Surface;
+
+use termion::async_stdin;
+use termion::clear;
+use termion::color;
+use termion::cursor;
+use termion::event::Key;
+use termion::event;
+use termion::input::TermRead;
+use termion::raw::IntoRawMode;
+use termion::style;
 
 use rand::prelude::*;
 
@@ -126,6 +138,7 @@ fn main() -> Result<(), Box<error::Error>> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
 
+    /*
     let window = video_subsystem.window("gb", 160, 144)
         .position_centered()
         .opengl()
@@ -139,30 +152,62 @@ fn main() -> Result<(), Box<error::Error>> {
     canvas.clear();
 
     canvas.present();
+    */
 
     let mut event_pump = sdl_context.event_pump()?;
 
+    let stdinput = async_stdin();
+    let mut stdout = stdout().into_raw_mode()?;
 
-    let mut _step = false;
-    'running: loop {
-        let mut _next = false;
+    let (_, height) = termion::terminal_size()?;
+    write!(stdout,
+           "{}{}",
+           color::Bg(color::White),
+           termion::clear::All);
+    write!(stdout,
+           "{}{}{}{}(q) quit - (b) break - (s) step - (c) continue",
+           cursor::Goto(1, height),
+           color::Bg(color::Blue),
+           color::Fg(color::White),
+           clear::CurrentLine);
 
-        for event in event_pump.poll_iter() {
+    stdout.flush()?;
+
+    let mut step = false;
+    let mut events = stdinput.events();
+    loop {
+
+        if let Some(result) = events.next() {
+            let event = result.unwrap();
             match event {
-                Event::KeyDown { keycode: Some(Keycode::Escape), .. } | Event::Quit {..} => {
-                    break 'running
-                },
-                _ => {}
+                event::Event::Key(Key::Char('q')) => break,
+                event::Event::Key(Key::Char('b')) => step = true,
+                _ => (),
             }
         }
 
+        if step {
+            let stdinput = stdin();
+            for c in stdinput.keys() {
+                match c.unwrap() {
+                    Key::Char('s') => break,
+                    Key::Char('c') => {
+                        step = false;
+                        break;
+                    }
+                    _ => (),
+                }
+            }
+        }
         for _ in 1..50 {
-        // if ! step || next {
-        cpu.decode();
-        //}
+            cpu.decode();
         }
 
-        gpu.borrow_mut().display(&mut canvas, &mut texture, &mut gpu_buffer);
+        // show_box(&mut stdout, "Registers", &cpu, 1)?;
+        // stdout.flush()?;
+
+        // gpu.borrow_mut().display(&mut canvas, &mut texture, &mut gpu_buffer, &mut stdout);
+        gpu.borrow_mut().display(&mut gpu_buffer, &mut stdout);
 
         match Input::new(&mut event_pump) {
             Some(Input::Joypad(JoypadButton::Up)) => println!("UP"),
@@ -170,6 +215,42 @@ fn main() -> Result<(), Box<error::Error>> {
             _ => {},
         }
     }
+
+    Ok(())
+}
+
+fn show_box<W: Write, D: Display>(
+    screen: &mut W,
+    title: &str,
+    content: D,
+    y: u16,
+) -> Result<(), Box<dyn error::Error>> {
+
+    let (width, _) = termion::terminal_size()?;
+
+    let fill: usize = width as usize - title.len()
+        - 9;
+
+    write!(screen,
+           "{}{}{}┌───┤ {} ├{}┐",
+           color::Fg(color::White),
+           color::Bg(color::Blue),
+           termion::cursor::Goto(1, y),
+           title,
+           "─".repeat(fill)).unwrap();
+
+    write!(screen,
+           "{}{}│ {}",
+           cursor::Goto(1, 2),
+           clear::CurrentLine,
+           content);
+    write!(screen, "{}│", termion::cursor::Goto(width, y));
+
+    write!(screen,
+           "{}{}└{}┘",
+           cursor::Goto(1, 3),
+           clear::CurrentLine,
+           "─".repeat(width as usize - 2));
 
     Ok(())
 }

@@ -4,6 +4,13 @@ use std::rc::Rc;
 
 use crate::memory::Memory;
 
+macro_rules! println {
+    ($($arg:tt)*) => {()}
+}
+macro_rules! print {
+    ($($arg:tt)*) => {()}
+}
+
 #[derive(Debug)]
 pub enum Register8 {
     A,

@@ -6,6 +6,13 @@ use std::ops::Range;
 
 use crate::gpu::Gpu;
 
+macro_rules! println {
+    ($($arg:tt)*) => {()}
+}
+macro_rules! print {
+    ($($arg:tt)*) => {()}
+}
+
 ///!  0x0000              0x4000             0x8000                                 0xffff
 ///!    ↑                   ↑                  ↑                                      ↑
 ///!    +--+-+---------------------------------+-------+---+-------+--------+----+----+
