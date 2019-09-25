@@ -4,13 +4,6 @@ use std::rc::Rc;
 
 use crate::memory::Memory;
 
-macro_rules! println {
-    ($($arg:tt)*) => {()}
-}
-macro_rules! print {
-    ($($arg:tt)*) => {()}
-}
-
 #[derive(Debug)]
 pub enum Register8 {
     A,
@@ -34,6 +27,11 @@ pub enum Location {
     Register(Register8),
     DoubleRegister(Register16),
     Address(u16),
+}
+
+pub struct Opcode {
+    name: String,
+    size: u8,
 }
 
 impl Location {
@@ -276,14 +274,21 @@ impl Cpu {
         }
     }
 
-    pub fn decode(&mut self) {
+    pub fn decode(&mut self) -> String {
         let mut memory = {
             self.memory.borrow_mut()
         };
 
         let opcode = memory.load(self.pc as usize);
 
-        print!("{:08x}:\t{:#04x} ", self.pc, opcode);
+        let mut decoded = format!("{:08x}:\t{:#04x} ", self.pc, opcode);
+
+        macro_rules! println {
+            ($($arg:tt)*) => {()}
+        }
+        macro_rules! print {
+            ($($arg:expr),*) => {()}
+        }
 
         match opcode {
             0x00 => println!("NOP"),
@@ -483,7 +488,7 @@ impl Cpu {
                 } else {
                     let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
                 };
-                return;
+                return decoded;
             }
             0x28 => {
                 // JR Z,n
@@ -505,7 +510,7 @@ impl Cpu {
                         let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
                     };
                 }
-                return;
+                return decoded;
             }
             0x38 => {
                 // JR C,n
@@ -527,7 +532,7 @@ impl Cpu {
                         let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
                     };
                 }
-                return;
+                return decoded;
             }
             0x0b | 0x1b | 0x2b | 0x3b => {
                 // 16bit DEC
@@ -759,7 +764,7 @@ impl Cpu {
 
                 println!("{:10} RET {:#04x}", " ", self.pc);
 
-                return;
+                return decoded;
             }
             0xc5 | 0xd5 | 0xe5 | 0xf5 => {
                 // PUSH r16
@@ -832,7 +837,7 @@ impl Cpu {
                 self.pc = addr;
 
                 println!("{:9} CALL {:#06x}", " ", addr);
-                return;
+                return decoded;
             }
             0xcb => {
                 self.pc += 1;
@@ -996,7 +1001,7 @@ impl Cpu {
                         let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
                     };
                 }
-                return;
+                return decoded;
             }
             0x30 => {
                 // JR NC,n
@@ -1018,7 +1023,7 @@ impl Cpu {
                         let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
                     };
                 }
-                return;
+                return decoded;
             }
             0xc3 => {
                 self.pc += 1;
@@ -1030,7 +1035,7 @@ impl Cpu {
                 self.pc = addr;
 
                 println!("{:9} JP {:#04x}", " ", addr);
-                return;
+                return decoded;
             }
             0xe0 => {
                 // LDH (n),A
@@ -1116,6 +1121,8 @@ impl Cpu {
 
         self.pc += 1;
         println!("  {}", self);
+
+        decoded
     }
 }
 

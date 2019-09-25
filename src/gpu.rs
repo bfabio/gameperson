@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::fmt;
 use std::io::Write;
 use std::rc::Rc;
+use std::time::Instant;
 
 use sdl2::rect::Rect;
 use sdl2::render::Canvas;
@@ -51,6 +52,8 @@ pub struct Gpu {
     // The X position in the 256x256 pixels BG map (32x32 tiles)
     // which is to be displayed at the upper/left LCD display position.
     pub scx: u8,
+
+    pub instant: Instant,
 }
 
 impl Gpu {
@@ -60,6 +63,7 @@ impl Gpu {
             ly: 0,
             scy: 0,
             scx: 0,
+            instant: Instant::now(),
         }
     }
 
@@ -101,6 +105,12 @@ impl Gpu {
 
             let offset = self.scy as u32 * BYTES_PER_PIXEL as u32 * BUFFER_WIDTH as u32;
             Gpu::term_out(screen, &buffer, offset);
+
+            write!(screen, "{}{}{:?}fps",
+                   color::Fg(color::Black),
+                   cursor::Goto(1, 1),
+                   1000.0 / self.instant.elapsed().as_millis() as f64);
+            self.instant = Instant::now();
 
             // canvas.copy(&texture, scanline_src, None).unwrap();
 

@@ -199,7 +199,7 @@ fn main() -> Result<(), Box<error::Error>> {
                 }
             }
         }
-        for _ in 1..50 {
+        for _ in 1..250 {
             cpu.decode();
         }
 
