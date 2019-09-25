@@ -159,17 +159,8 @@ fn main() -> Result<(), Box<error::Error>> {
     let stdinput = async_stdin();
     let mut stdout = stdout().into_raw_mode()?;
 
-    let (_, height) = termion::terminal_size()?;
-    write!(stdout,
-           "{}{}",
-           color::Bg(color::White),
-           termion::clear::All);
-    write!(stdout,
-           "{}{}{}{}(q) quit - (b) break - (s) step - (c) continue",
-           cursor::Goto(1, height),
-           color::Bg(color::Blue),
-           color::Fg(color::White),
-           clear::CurrentLine);
+
+    tui_windows_setup(&mut stdout)?;
 
     stdout.flush()?;
 
@@ -181,7 +172,7 @@ fn main() -> Result<(), Box<error::Error>> {
             let event = result.unwrap();
             match event {
                 event::Event::Key(Key::Char('q')) => break,
-                event::Event::Key(Key::Char('b')) => step = true,
+                event::Event::Key(Key::Char('s')) => step = true,
                 _ => (),
             }
         }
@@ -203,7 +194,7 @@ fn main() -> Result<(), Box<error::Error>> {
             cpu.decode();
         }
 
-        // show_box(&mut stdout, "Registers", &cpu, 1)?;
+        tui_window_content(&mut stdout, &cpu, 150, 1);
         // stdout.flush()?;
 
         // gpu.borrow_mut().display(&mut canvas, &mut texture, &mut gpu_buffer, &mut stdout);
@@ -219,15 +210,34 @@ fn main() -> Result<(), Box<error::Error>> {
     Ok(())
 }
 
-fn show_box<W: Write, D: Display>(
+fn tui_windows_setup<W: Write>(
+    screen: &mut W
+) -> Result<(), Box<dyn error::Error>> {
+    let (_, height) = termion::terminal_size()?;
+
+    write!(screen,
+           "{}{}{}",
+           color::Bg(color::Blue),
+           cursor::Hide,
+           termion::clear::All);
+    write!(screen,
+           "{}{}{}(q) quit - (s) step - (c) continue{}",
+           cursor::Goto(1, height),
+           style::Bold,
+           color::Fg(color::White),
+           style::Reset);
+
+    tui_window(screen, "Registers", 150, 1, 30, 4)
+}
+
+fn tui_window<W: Write>(
     screen: &mut W,
     title: &str,
-    content: D,
-    y: u16,
+    x_pos: u16,
+    y_pos: u16,
+    width: u16,
+    height: u16,
 ) -> Result<(), Box<dyn error::Error>> {
-
-    let (width, _) = termion::terminal_size()?;
-
     let fill: usize = width as usize - title.len()
         - 9;
 
@@ -235,22 +245,35 @@ fn show_box<W: Write, D: Display>(
            "{}{}{}┌───┤ {} ├{}┐",
            color::Fg(color::White),
            color::Bg(color::Blue),
-           termion::cursor::Goto(1, y),
+           termion::cursor::Goto(x_pos, y_pos),
            title,
            "─".repeat(fill)).unwrap();
 
-    write!(screen,
-           "{}{}│ {}",
-           cursor::Goto(1, 2),
-           clear::CurrentLine,
-           content);
-    write!(screen, "{}│", termion::cursor::Goto(width, y));
+    for line in (y_pos+1)..(y_pos+height) {
+        write!(screen,
+               "{}{}│",
+               cursor::Goto(x_pos, line),
+               clear::UntilNewline);
+        write!(screen, "{}│", termion::cursor::Goto(x_pos + width - 1, line));
+    }
 
     write!(screen,
            "{}{}└{}┘",
-           cursor::Goto(1, 3),
+           cursor::Goto(x_pos, y_pos + height),
            clear::CurrentLine,
            "─".repeat(width as usize - 2));
 
     Ok(())
+}
+
+fn tui_window_content<W: Write, D: Display>(
+    screen: &mut W,
+    content: D,
+    x_pos: u16,
+    y_pos: u16,
+) {
+    write!(screen,
+           "{}{}",
+           cursor::Goto(x_pos + 2, y_pos + 2),
+           content);
 }

@@ -12,6 +12,7 @@ use sdl2::video::Window;
 use termion::clear;
 use termion::color;
 use termion::cursor;
+use termion::style;
 
 use crate::memory::Memory;
 
@@ -106,9 +107,9 @@ impl Gpu {
             let offset = self.scy as u32 * BYTES_PER_PIXEL as u32 * BUFFER_WIDTH as u32;
             Gpu::term_out(screen, &buffer, offset);
 
-            write!(screen, "{}{}{:?}fps",
-                   color::Fg(color::Black),
-                   cursor::Goto(1, 1),
+            write!(screen, "{}{}{:.2} fps",
+                   color::Bg(color::Blue),
+                   cursor::Goto(1, 71),
                    1000.0 / self.instant.elapsed().as_millis() as f64);
             self.instant = Instant::now();
 
@@ -193,7 +194,7 @@ impl Gpu {
 
                 frame.push_str(&format!(
                     "{}{}{}▄",
-                    cursor::Goto(1 + x, 1 + 3 + y),
+                    cursor::Goto(1 + x, 1 + y),
                     color::Bg(color::Rgb(r0, g0, b0)),
                     color::Fg(color::Rgb(r1, g1, b1)),
                 ));
