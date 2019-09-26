@@ -17,6 +17,7 @@ use std::io;
 use std::io::{Write, stdin, stdout};
 use std::cell::RefCell;
 use std::fmt::Display;
+use std::process::exit;
 use std::rc::Rc;
 use std::str;
 
@@ -156,7 +157,7 @@ fn main() -> Result<(), Box<error::Error>> {
 
     let mut event_pump = sdl_context.event_pump()?;
 
-    let stdinput = async_stdin();
+    let mut stdinput = async_stdin();
     let mut stdout = stdout().into_raw_mode()?;
 
 
@@ -165,32 +166,44 @@ fn main() -> Result<(), Box<error::Error>> {
     stdout.flush()?;
 
     let mut step = false;
+    let mut cycles = 250;
     let mut events = stdinput.events();
     loop {
-
         if let Some(result) = events.next() {
             let event = result.unwrap();
             match event {
-                event::Event::Key(Key::Char('q')) => break,
-                event::Event::Key(Key::Char('s')) => step = true,
+                event::Event::Key(Key::Char('q')) => exit(0),
+                event::Event::Key(Key::Char('b')) => {
+                    cycles = 1;
+                    step = true;
+                },
                 _ => (),
             }
         }
 
         if step {
-            let stdinput = stdin();
+            let mut stdinput = stdin();
             for c in stdinput.keys() {
                 match c.unwrap() {
+                    Key::Char('q') => exit(0),
                     Key::Char('s') => break,
                     Key::Char('c') => {
                         step = false;
+                        cycles = 250;
                         break;
+                    },
+                    Key::Char('m') => {
+                        let mut sin = stdin();
+
+                        if let Some(pass) = sin.read_passwd(&mut stdout)? {
+                            println!("{}", pass);
+                        };
                     }
                     _ => (),
                 }
             }
         }
-        for _ in 1..250 {
+        for _ in 1..cycles {
             cpu.decode();
         }
 
