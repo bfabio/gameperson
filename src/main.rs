@@ -204,7 +204,14 @@ fn main() -> Result<(), Box<error::Error>> {
             }
         }
         for _ in 1..cycles {
-            cpu.decode();
+            let decoded = cpu.decode();
+
+            if cycles == 1 {
+                write!(stdout,
+                       "{}{}",
+                       cursor::Goto(150, 20),
+                       decoded);
+            }
         }
 
         tui_window_content(&mut stdout, &cpu, 150, 1);

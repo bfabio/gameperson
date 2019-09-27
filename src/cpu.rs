@@ -281,17 +281,8 @@ impl Cpu {
 
         let opcode = memory.load(self.pc as usize);
 
-        let mut decoded = format!("{:08x}:\t{:#04x} ", self.pc, opcode);
-
-        macro_rules! println {
-            ($($arg:tt)*) => {()}
-        }
-        macro_rules! print {
-            ($($arg:expr),*) => {()}
-        }
-
-        match opcode {
-            0x00 => println!("NOP"),
+        let decoded = match opcode {
+            0x00 => format!("NOP"),
             0x01 | 0x11 | 0x21 | 0x31 => {
                 // LD r16,n
                 //
@@ -325,7 +316,7 @@ impl Cpu {
                     _ => unreachable!()
                 };
 
-                println!("{:#04x} {:#04x} LD {},{:#x}", low, high, reg_name, immediate);
+                format!("{:#04x} {:#04x} LD {},{:#x}", low, high, reg_name, immediate)
             }
             0x05 | 0x15 | 0x25 | 0x35 | 0x0d | 0x1d | 0x2d | 0x3d => {
                 // DEC r8
@@ -349,7 +340,7 @@ impl Cpu {
                 self.regs.set_flag(SUBTRACT_FLAG, true);
                 self.regs.set_flag(HALF_CARRY_FLAG, value & 0x0f == 0x0f);
 
-                println!("{:9} DEC {}", " ", location);
+                format!("{:9} DEC {}", " ", location)
             }
             0x17 => {
                 // RLA
@@ -390,8 +381,8 @@ impl Cpu {
                 self.regs.set_flag(SUBTRACT_FLAG, false);
                 self.regs.set_flag(HALF_CARRY_FLAG, false);
 
-                print!("{:10} RLA", " ");
-            }
+                format!("{:10} RLA", " ")
+           }
             0x0a | 0x1a | 0x2a | 0x3a => {
                 // LD A,(r16)
                 //
@@ -403,7 +394,7 @@ impl Cpu {
                         (memory.load(self.regs.bc() as usize), "BC")
                     }
                     1 => {
-                        println!("DE: {:#06x}", self.regs.de());
+                        format!("DE: {:#06x}", self.regs.de());
                         (memory.load(self.regs.de() as usize), "DE")
                     }
                     2 => {
@@ -423,7 +414,7 @@ impl Cpu {
 
                 self.regs.a = value;
 
-                print!("{:10} LD A,({})", " ", reg_name);
+                format!("{:10} LD A,({})", " ", reg_name)
             }
             0x06 | 0x16 | 0x26 | 0x36 | 0x0e | 0x1e | 0x2e | 0x3e => {
                 // LD r8,n
@@ -438,9 +429,9 @@ impl Cpu {
                 let location = self.index(reg_index);
                 location.store8(&mut self.regs, &mut memory, immediate);
 
-                println!("{1:#04x}      LD {0},{1:#x}",
+                format!("{1:#04x}      LD {0},{1:#x}",
                          location,
-                         immediate);
+                         immediate)
             }
             0x03 | 0x13 | 0x23 | 0x33 => {
                 // 16bit INC
@@ -468,7 +459,7 @@ impl Cpu {
                     _ => unreachable!()
                 };
 
-                println!("{:9} INC {}", " ", reg_name);
+                format!("{:9} INC {}", " ", reg_name)
             }
             0x18 => {
                 // JR n
@@ -478,7 +469,6 @@ impl Cpu {
                 self.pc += 1;
                 let immediate = memory.load(self.pc as usize) as i8;
 
-                println!("{0:#04x}      JR {0:#04x} {0}", immediate);
 
                 self.pc += 1;
 
@@ -488,7 +478,9 @@ impl Cpu {
                 } else {
                     let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
                 };
-                return decoded;
+
+
+                return format!("{0:#04x}      JR {0:#04x} {0}", immediate);
             }
             0x28 => {
                 // JR Z,n
@@ -498,7 +490,6 @@ impl Cpu {
                 self.pc += 1;
                 let immediate = memory.load(self.pc as usize) as i8;
 
-                println!("{0:#04x}      JR Z,{0:#04x} {0}", immediate);
 
                 self.pc += 1;
 
@@ -510,7 +501,8 @@ impl Cpu {
                         let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
                     };
                 }
-                return decoded;
+
+                return format!("{0:#04x}      JR Z,{0:#04x} {0}", immediate);
             }
             0x38 => {
                 // JR C,n
@@ -520,7 +512,6 @@ impl Cpu {
                 self.pc += 1;
                 let immediate = memory.load(self.pc as usize) as i8;
 
-                println!("{0:#04x}      JR C,{0:#04x} {0}", immediate);
 
                 self.pc += 1;
 
@@ -532,7 +523,8 @@ impl Cpu {
                         let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
                     };
                 }
-                return decoded;
+
+                return format!("{0:#04x}      JR C,{0:#04x} {0}", immediate)
             }
             0x0b | 0x1b | 0x2b | 0x3b => {
                 // 16bit DEC
@@ -560,7 +552,7 @@ impl Cpu {
                     _ => unreachable!()
                 };
 
-                println!("{:9} DEC {}", " ", reg_name);
+                format!("{:9} DEC {}", " ", reg_name)
             }
             0x04 | 0x14 | 0x24 | 0x34 | 0x0c | 0x1c | 0x2c | 0x3c => {
                 // INC r8
@@ -584,56 +576,49 @@ impl Cpu {
                 self.regs.set_flag(SUBTRACT_FLAG, false);
                 self.regs.set_flag(HALF_CARRY_FLAG, value & 0x0F == 0);
 
-                println!("{:9} INC {}", " ", location);
+                format!("{:9} INC {}", " ", location)
             }
             0x02 => {
                 // LD (BC), A
-                print!("{:10}", " ");
-
                 let address = self.regs.bc() as usize;
                 memory.write(address, self.regs.a);
 
-                println!("LD (BC),A");
+                format!("{:10}LD (BC),A", " ")
             }
             0x12 => {
                 // LD (DE),A
-                print!("{:10}", " ");
 
                 let address = self.regs.de() as usize;
                 memory.write(address, self.regs.a);
 
-                println!("LD (DE),A");
+                format!("{:10}LD (DE),A", " ")
             }
 
             0x22 => {
                 // LD (HL+),A
-                print!("{:10}", " ");
+                format!("{:10}", " ");
 
                 let address = self.regs.hl() as usize;
                 memory.write(address, self.regs.a);
                 self.regs.write_hl(self.regs.hl() + 1);
 
-                println!("LD (HL+),A");
+                format!("LD (HL+),A")
             }
             0x32 => {
                 // LD (HL-),A
                 //
                 // Copy A into memory address HL and decrement HL.
 
-                print!("{:10}", " ");
-
                 let address = self.regs.hl() as usize;
                 memory.write(address, self.regs.a);
                 self.regs.write_hl(self.regs.hl() - 1);
 
-                println!("LD (HL-),A");
+                format!("{:10}LD (HL-),A", " ")
             }
             (0x40..=0x7f) => {
                 // LD r1,r2
                 //
                 // Store 8 bit register r2 into 8 bit register r1
-
-                print!("{:10}", " ");
 
                 let src_index = opcode & 0b0000_0111;
                 let src_location = self.index(src_index);
@@ -644,14 +629,12 @@ impl Cpu {
 
                 dst_location.store8(&mut self.regs, &mut memory, src_value);
 
-                println!("LD {},{}", dst_location, src_location);
+                format!("{:10}LD {},{}", " ", dst_location, src_location)
             }
             (0x80..=0xbf) => {
-                print!("{:10}", " ");
-
-                match (opcode & 0b0011_1000) >> 3 {
-                    0 => println!("ADD A, opcode"),
-                    1 => println!("ADC A, opcode"),
+                let out = match (opcode & 0b0011_1000) >> 3 {
+                    0 => format!("ADD A, opcode"),
+                    1 => format!("ADC A, opcode"),
                     2 => {
                         // SUB r8
                         // Subtract r8 from A.
@@ -676,10 +659,10 @@ impl Cpu {
                         // self.regs.set_flag(HALF_CARRY_FLAG, true);
                         // self.regs.set_flag(CARRY_FLAG, true);
 
-                        println!("SUB {}", location);
+                        format!("SUB {}", location)
                     }
-                    3 => println!("SUB A, opcode"),
-                    4 => println!("AND opcode"),
+                    3 => format!("SUB A, opcode"),
+                    4 => format!("AND opcode"),
                     5 => {
                         // XOR r8
                         // Logical exclusive OR n with register A, result in A.
@@ -698,19 +681,17 @@ impl Cpu {
                         self.regs.flags = 0;
                         self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
 
-                        println!("XOR {}", location);
+                        format!("XOR {}", location)
                     }
-                    6 => println!("OR opcode"),
+                    6 => format!("OR opcode"),
                     7 => {
                         self.regs.set_flag(ZERO_FLAG, true); // XXX Remove me
-                        println!("CP opcode");
+                        format!("CP opcode")
                     }
-                    _ => {
-                        println!("CPU Status: {}", self);
+                    _ => panic!("Unknown opcode")
+                };
 
-                        panic!("Unknown opcode");
-                    }
-                }
+                format!("{:10}{}", " ", out)
             },
             0xc1 | 0xd1 | 0xe1 | 0xf1 => {
                 // POP r16
@@ -752,7 +733,7 @@ impl Cpu {
                     _ => unreachable!()
                 };
 
-                println!("{:9} POP {}", " ", reg_name);
+                format!("{:9} POP {}", " ", reg_name)
             }
             0xc9 => {
                 let high = memory.load(self.sp as usize);
@@ -762,9 +743,7 @@ impl Cpu {
 
                 self.pc = u16::from_be_bytes([high, low]);
 
-                println!("{:10} RET {:#04x}", " ", self.pc);
-
-                return decoded;
+                return format!("{:10} RET {:#04x}", " ", self.pc);
             }
             0xc5 | 0xd5 | 0xe5 | 0xf5 => {
                 // PUSH r16
@@ -811,7 +790,7 @@ impl Cpu {
                     _ => unreachable!()
                 };
 
-                println!("{:9} PUSH {}", " ", reg_name);
+                format!("{:9} PUSH {}", " ", reg_name)
             }
             0xcd => {
                 // CALL nn
@@ -836,8 +815,7 @@ impl Cpu {
 
                 self.pc = addr;
 
-                println!("{:9} CALL {:#06x}", " ", addr);
-                return decoded;
+                return format!("{:9} CALL {:#06x}", " ", addr);
             }
             0xcb => {
                 self.pc += 1;
@@ -866,10 +844,10 @@ impl Cpu {
                                 self.regs.flags &= !SUBTRACT_FLAG;
                                 self.regs.flags &= !HALF_CARRY_FLAG;
 
-                                println!("{:#04x}      RLC {}", cb_opcode, location);
+                                format!("{:#04x}      RLC {}", cb_opcode, location)
                             }
                             1 => {
-                                println!("RRC");
+                                format!("RRC")
                             }
                             2 => {
                                 // RL r8
@@ -914,7 +892,7 @@ impl Cpu {
                                 self.regs.set_flag(SUBTRACT_FLAG, false);
                                 self.regs.set_flag(HALF_CARRY_FLAG, false);
 
-                                println!("{:#04x}      RL {}", cb_opcode, location);
+                                format!("{:#04x}      RL {}", cb_opcode, location)
                             }
                             3 => {
                                 // 9-bit rotation to the right. The carry is copied into bit 7,
@@ -935,19 +913,19 @@ impl Cpu {
                                 self.regs.flags &= !SUBTRACT_FLAG;
                                 self.regs.flags &= !HALF_CARRY_FLAG;
 
-                                println!("{:#04x}      RR {}", cb_opcode, location);
+                                format!("{:#04x}      RR {}", cb_opcode, location)
                             }
                             4 => {
-                                println!("SLA");
+                                format!("SLA")
                             }
                             5 => {
-                                println!("SRA");
+                                format!("SRA")
                             }
                             6 => {
-                                println!("SWAP");
+                                format!("SWAP")
                             }
                             7 => {
-                                println!("SRL");
+                                format!("SRL")
                             }
                             _ => unreachable!(),
                         }
@@ -974,10 +952,10 @@ impl Cpu {
                         self.regs.set_flag(SUBTRACT_FLAG, false);
                         self.regs.set_flag(HALF_CARRY_FLAG, true);
 
-                        println!("BIT {},{}", bit_pos, location);
+                        format!("BIT {},{}", bit_pos, location)
                     }
-                    2 => println!("RES opcode"),
-                    3 => println!("SET, opcode"),
+                    2 => format!("RES opcode"),
+                    3 => format!("SET, opcode"),
                     _ => panic!("Unknown CB opcode"),
                 }
             }
@@ -989,8 +967,6 @@ impl Cpu {
                 self.pc += 1;
                 let immediate = memory.load(self.pc as usize) as i8;
 
-                println!("{0:#04x}      JR NZ,{0:#04x} {0}", immediate);
-
                 self.pc += 1;
 
                 if (self.regs.flags & ZERO_FLAG) == 0 {
@@ -998,10 +974,11 @@ impl Cpu {
                     self.pc = if immediate >= 0 {
                         self.pc.saturating_add(immediate as u16)
                     } else {
-                        let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
+                        self.pc.saturating_sub(immediate.abs() as u16)
                     };
                 }
-                return decoded;
+
+                return format!("{0:#04x}      JR NZ,{0:#04x} {0}", immediate);
             }
             0x30 => {
                 // JR NC,n
@@ -1011,8 +988,6 @@ impl Cpu {
                 self.pc += 1;
                 let immediate = memory.load(self.pc as usize) as i8;
 
-                println!("{0:#04x}      JR NC,{0:#04x} {0}", immediate);
-
                 self.pc += 1;
 
                 if (self.regs.flags & CARRY_FLAG) == 0 {
@@ -1020,10 +995,10 @@ impl Cpu {
                     self.pc = if immediate >= 0 {
                         self.pc.saturating_add(immediate as u16)
                     } else {
-                        let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
+                        self.pc.saturating_sub(immediate.abs() as u16)
                     };
                 }
-                return decoded;
+                return format!("{0:#04x}      JR NC,{0:#04x} {0}", immediate);
             }
             0xc3 => {
                 self.pc += 1;
@@ -1034,8 +1009,7 @@ impl Cpu {
                 let addr: u16 = (high as u16) << 8 | low as u16;
                 self.pc = addr;
 
-                println!("{:9} JP {:#04x}", " ", addr);
-                return decoded;
+                return format!("{:9} JP {:#04x}", " ", addr);
             }
             0xe0 => {
                 // LDH (n),A
@@ -1045,9 +1019,9 @@ impl Cpu {
                 self.pc += 1;
                 let immediate = memory.load(self.pc as usize) as usize;
 
-                println!("{0:#04x}      LD (0xff00+{0:#04x}),A", immediate);
-
                 memory.write(0xff00 + immediate, self.regs.a);
+
+                format!("{0:#04x}      LD (0xff00+{0:#04x}),A", immediate)
             }
             0xf0 => {
                 // LDH A,(n)
@@ -1058,20 +1032,18 @@ impl Cpu {
                 self.pc += 1;
                 let immediate = memory.load(self.pc as usize) as usize;
 
-                println!("{0:#04x}      LD (0xff00+{0:#04x}),A", immediate);
-
                 self.regs.a = memory.load(0xff00 + immediate);
+
+                format!("{0:#04x}      LD (0xff00+{0:#04x}),A", immediate)
             }
             0xe2 => {
                 // LD (0xff00+C),A
                 //
                 // Store A into address 0xff0 + register C.
 
-                print!("{:10}", " ");
-
                 memory.write(0xff00 + self.regs.c as usize, self.regs.a);
 
-                println!("LD (0xff00+C),A");
+                format!("{:10}LD (0xff00+C),A", " ")
             }
             0xea => {
                 //
@@ -1085,7 +1057,7 @@ impl Cpu {
 
                 self.regs.a = memory.load(addr as usize);
 
-                println!("{:9} LD ({:#06x}),A", " ", addr);
+                format!("{:9} LD ({:#06x}),A", " ", addr)
 
             }
             0xf3 => {
@@ -1095,7 +1067,7 @@ impl Cpu {
 
                 self.regs.a = memory.load(self.regs.c as usize);
 
-                print!("{:10} LD A,(C)", " ");
+                format!("{:10} LD A,(C)", " ")
 
             }
             0xfe => {
@@ -1114,15 +1086,14 @@ impl Cpu {
 
                 self.regs.flags |= SUBTRACT_FLAG;
 
-                println!("{:10} CP {:#04x}", " ", immediate);
+                format!("{:10} CP {:#04x}", " ", immediate)
             }
-            _ => println!("Unknown opcode")
-        }
+            _ => format!("Unknown opcode")
+        };
 
         self.pc += 1;
-        println!("  {}", self);
 
-        decoded
+        format!("{:08x}:\t{:#04x}{}", self.pc, opcode, decoded)
     }
 }
 
