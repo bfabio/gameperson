@@ -5,6 +5,7 @@
  clippy::cargo,
 )]
 
+mod audio;
 mod cpu;
 mod gpu;
 mod input;
@@ -106,7 +107,7 @@ fn cartridge_info(path: &str) -> Result<(), io::Error> {
     Ok(())
 }
 
-fn main() -> Result<(), Box<error::Error>> {
+fn main() -> Result<(), Box<dyn error::Error>> {
     let boot_rom_path = env::args().nth(1).expect("Boot ROM required");
     let rom_path = env::args().nth(2).expect("ROM required");
 
@@ -155,35 +156,40 @@ fn main() -> Result<(), Box<error::Error>> {
     canvas.present();
     */
 
-    let mut event_pump = sdl_context.event_pump()?;
+    audio::main2(sdl_context.audio()?)?;
+    // let mut event_pump = sdl_context.event_pump()?;
 
-    let mut stdinput = async_stdin();
+    // let async_stdinput = async_stdin();
     let mut stdout = stdout().into_raw_mode()?;
-
 
     tui_windows_setup(&mut stdout)?;
 
     stdout.flush()?;
 
-    let mut step = false;
-    let mut cycles = 250;
-    let mut events = stdinput.events();
-    loop {
-        if let Some(result) = events.next() {
-            let event = result.unwrap();
-            match event {
-                event::Event::Key(Key::Char('q')) => exit(0),
-                event::Event::Key(Key::Char('b')) => {
-                    cycles = 1;
-                    step = true;
-                },
-                _ => (),
-            }
-        }
+    let stdinput = stdin();
+    let stdinput = stdinput.lock();
 
-        if step {
-            let mut stdinput = stdin();
-            for c in stdinput.keys() {
+    let mut stdinput = stdinput.keys();
+
+    let mut step = true;
+    let mut cycles = 1;
+    //let mut events = async_stdinput.events();
+    loop {
+        if ! step {
+            /*
+            if let Some(result) = events.next() {
+                let event = result.unwrap();
+                match event {
+                    event::Event::Key(Key::Char('q')) => exit(0),
+                    event::Event::Key(Key::Char('b')) => {
+                        cycles = 1;
+                        step = true;
+                    },
+                    _ => (),
+                }
+            }*/
+        } else {
+            for c in stdinput.next() {
                 match c.unwrap() {
                     Key::Char('q') => exit(0),
                     Key::Char('s') => break,
@@ -191,26 +197,29 @@ fn main() -> Result<(), Box<error::Error>> {
                         step = false;
                         cycles = 250;
                         break;
-                    },
+                    },/*
                     Key::Char('m') => {
                         let mut sin = stdin();
 
                         if let Some(pass) = sin.read_passwd(&mut stdout)? {
                             println!("{}", pass);
                         };
-                    }
-                    _ => (),
+                    }*/
+                    _ => println!("XXXXXXXXXXXXX"),
                 }
             }
         }
-        for _ in 1..cycles {
+
+        for _ in 1..=cycles {
             let decoded = cpu.decode();
 
             if cycles == 1 {
                 write!(stdout,
-                       "{}{}",
+                       "{}{}{}",
                        cursor::Goto(150, 20),
+                       clear::UntilNewline,
                        decoded);
+                stdout.flush()?;
             }
         }
 
@@ -220,14 +229,15 @@ fn main() -> Result<(), Box<error::Error>> {
         // gpu.borrow_mut().display(&mut canvas, &mut texture, &mut gpu_buffer, &mut stdout);
         gpu.borrow_mut().display(&mut gpu_buffer, &mut stdout);
 
+        /*
         match Input::new(&mut event_pump) {
             Some(Input::Joypad(JoypadButton::Up)) => println!("UP"),
             Some(Input::Joypad(JoypadButton::Down)) => println!("Down"),
             _ => {},
-        }
+        }*/
     }
 
-    Ok(())
+    // Ok(())
 }
 
 fn tui_windows_setup<W: Write>(
