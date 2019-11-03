@@ -13,6 +13,14 @@ a ROM file to run.
 cargo run BOOT_ROM.bin ROM.gb
 ```
 
+## Status
+
+- [x] CPU opcodes
+- [ ] Interrupts
+- [ ] Timers
+- [ ] APU
+- [ ] GPU (Incomplete)
+
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
