@@ -93,7 +93,7 @@ fn cartridge_info(path: &str) -> Result<(), io::Error> {
     Ok(())
 }
 
-fn main() -> Result<(), Box<error::Error>> {
+fn main() -> Result<(), Box<dyn error::Error>> {
     let boot_rom_path = env::args().nth(1).expect("Boot ROM required");
     let rom_path = env::args().nth(2).expect("ROM required");
 
