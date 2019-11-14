@@ -35,7 +35,7 @@ use crate::gpu::Gpu;
 ///!    💾 0x0150-0x3fff - Cartridge ROM, Bank 0 (16048 bytes)
 ///!    ======================================================
 ///!
-///!    💾 0x4000-0x7fff - Cartridge ROM, Switchable banks (16384 bytes, 16kb)
+///!    💾 0x4000-0x7fff - Cartridge ROM, Switchable banks (16384 bytes, 16kB)
 ///!    ======================================================================
 ///!
 ///!    👾 0x8000-0x97ff - Tile RAM (AKA Character RAM)
