@@ -71,14 +71,14 @@ use crate::gpu::Gpu;
 ///!    $87FF-$97FF. Generally most programs use 0-255 tiles, since it's
 ///!    nice and easy. XXX
 ///!
-///!    ⛰  0x9800-0x9bff (BG Map Data 1)
-///!    ================================
-///!    This 1024-byte long area is what the video processor uses to build the display.
-///!    Each byte in this space represents an 8x8 pixel space on the display. This area
-///!    is 32x32 tiles large... The display processor takes each byte
+///!    ⛰  0x9800-0x9bff - BG Map Data 1 (1024 bytes)
+///!    =============================================
+///!    This area is what the video processor uses to build the display.
+///!    Each byte represents an 8x8 pixel space on the display. This area
+///!    is 32x32 tiles large. The display processor takes each byte
 ///!    and then goes into the Character RAM area and gets the corresponding tile from
 ///!    that area and draws it to the screen. So, if the first byte in the Map area
-///!    contained $40, the display processor would get tile $40 from the Character RAM
+///!    contained 0x40, the display processor would get tile 0x40 from the Character RAM
 ///!    and put it in the top-left corner of the virtual screen. I say virtual screen
 ///!    because the actual LCD is only 160x144 pixels in size and is basically a
 ///!    viewport that can be scrolled around the 32x32 tile (256x256 pixel) background
