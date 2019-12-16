@@ -88,7 +88,7 @@ use crate::gpu::Gpu;
 ///!    ================================
 ///!    This area is just a second background map area like the previous one. To
 ///!    specify which map the video processor uses to build the background image,
-///!    change the apropriate bit in the LCDC I/O register, explained later.
+///!    change the appropriate bit in the LCDC I/O register, explained later.
 ///
 ///!    0xfe00-0xffff
 ///!    ====================================
