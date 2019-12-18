@@ -74,6 +74,7 @@ use crate::gpu::Gpu;
 ///!    ⛰  0x9800-0x9bff - BG Map Data 1 (1024 bytes)
 ///!    =============================================
 ///!    This area is what the video processor uses to build the display.
+///!
 ///!    Each byte represents an 8x8 pixel space on the display. This area
 ///!    is 32x32 tiles large. The display processor takes each byte
 ///!    and then goes into the Character RAM area and gets the corresponding tile from
