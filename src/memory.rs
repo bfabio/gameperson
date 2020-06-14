@@ -174,9 +174,7 @@ impl Region for IORegisters {
             //
             // Writing will reset the counter.
             0x44 => {
-                let ly = self.gpu.borrow().ly;
-
-                ly
+                self.gpu.borrow().ly
             }
             _ => {
                 print!("(Fake read from I/O register at {:#06x}) ", address);
@@ -317,7 +315,7 @@ impl Memory {
         self.mappings.push(mapping);
     }
 
-    pub fn unmap(&mut self, address: u16) {
+    pub fn unmap(&mut self, _address: u16) {
         println!("Unmapping Boot ROM");
         self.cartridge = vec![];
     }

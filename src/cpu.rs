@@ -1,5 +1,5 @@
-use std::fmt;
 use std::cell::RefCell;
+use std::fmt;
 use std::rc::Rc;
 
 use crate::memory::Memory;
@@ -32,81 +32,72 @@ pub enum Location {
 impl Location {
     fn load8(&self, regs: &Registers, address_space: &Memory) -> u8 {
         match self {
-            Location::Register(reg) => {
-                match reg {
-                    Register8::A => regs.a,
-                    Register8::B => regs.b,
-                    Register8::C => regs.c,
-                    Register8::D => regs.d,
-                    Register8::E => regs.e,
-                    Register8::H => regs.h,
-                    Register8::L => regs.l,
-                }
-            }
-            Location::DoubleRegister(_) => {
+            Self::Register(reg) => match reg {
+                Register8::A => regs.a,
+                Register8::B => regs.b,
+                Register8::C => regs.c,
+                Register8::D => regs.d,
+                Register8::E => regs.e,
+                Register8::H => regs.h,
+                Register8::L => regs.l,
+            },
+            Self::DoubleRegister(_) => {
                 panic!("load8() called on a 16bit register");
             }
-            Location::Address(address) => {
-                address_space.load(*address as usize)
-            }
+            Self::Address(address) => address_space.load(*address as usize),
         }
     }
 
+    #[allow(unused)]
     fn load16(&self, regs: &Registers, address_space: &Memory) -> u16 {
         match self {
-            Location::Register(_) => {
+            Self::Register(_) => {
                 panic!("load16() called on a 8bit register");
             }
-            Location::DoubleRegister(reg) => {
-                match reg {
-                    Register16::BC => regs.bc(),
-                    Register16::HL => regs.hl(),
-                    Register16::DE => regs.de(),
-                }
-            }
-            Location::Address(address) => {
+            Self::DoubleRegister(reg) => match reg {
+                Register16::BC => regs.bc(),
+                Register16::HL => regs.hl(),
+                Register16::DE => regs.de(),
+            },
+            Self::Address(address) => {
                 let (high, low) = (*address as usize, (*address + 1) as usize);
                 u16::from(address_space.load(high)) | u16::from(address_space.load(low) << 8)
             }
         }
     }
-
     fn store8(&self, regs: &mut Registers, address_space: &mut Memory, value: u8) {
         match self {
-            Location::Register(reg) => {
-                match reg {
-                    Register8::A => regs.a = value,
-                    Register8::B => regs.b = value,
-                    Register8::C => regs.c = value,
-                    Register8::D => regs.d = value,
-                    Register8::E => regs.e = value,
-                    Register8::H => regs.h = value,
-                    Register8::L => regs.l = value,
-                }
-            }
-            Location::DoubleRegister(_) => {
+            Self::Register(reg) => match reg {
+                Register8::A => regs.a = value,
+                Register8::B => regs.b = value,
+                Register8::C => regs.c = value,
+                Register8::D => regs.d = value,
+                Register8::E => regs.e = value,
+                Register8::H => regs.h = value,
+                Register8::L => regs.l = value,
+            },
+            Self::DoubleRegister(_) => {
                 panic!("store8() called on a 16bit register");
             }
-            Location::Address(address) => {
+            Self::Address(address) => {
                 address_space.write(*address as usize, value);
             }
         }
     }
 
+    #[allow(unused)]
     fn store16(&self, regs: &mut Registers, address_space: &mut Memory, value: u16) {
         match self {
-            Location::Register(_) => {
+            Self::Register(_) => {
                 panic!("store16() called on a 8bit register");
             }
-            Location::DoubleRegister(reg) => {
-                match reg {
-                    Register16::BC => regs.write_bc(value),
-                    Register16::HL => regs.write_hl(value),
-                    Register16::DE => regs.write_de(value),
-                }
-            }
-            Location::Address(_) => {
-                panic!("Unimplemented");
+            Self::DoubleRegister(reg) => match reg {
+                Register16::BC => regs.write_bc(value),
+                Register16::HL => regs.write_hl(value),
+                Register16::DE => regs.write_de(value),
+            },
+            Self::Address(_) => {
+                unimplemented!();
             }
         };
     }
@@ -115,25 +106,21 @@ impl Location {
 impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Location::Register(reg8) => {
-                match reg8 {
-                    Register8::A => write!(f, "A"),
-                    Register8::B => write!(f, "B"),
-                    Register8::C => write!(f, "C"),
-                    Register8::D => write!(f, "D"),
-                    Register8::E => write!(f, "E"),
-                    Register8::H => write!(f, "H"),
-                    Register8::L => write!(f, "L"),
-                }
-            }
-            Location::DoubleRegister(reg16) => {
-                match reg16 {
-                    Register16::BC => write!(f, "BC"),
-                    Register16::HL => write!(f, "HL"),
-                    Register16::DE => write!(f, "DE"),
-                }
-            }
-            Location::Address(addr) => write!(f, "({:#06x})", addr),
+            Self::Register(reg8) => match reg8 {
+                Register8::A => write!(f, "A"),
+                Register8::B => write!(f, "B"),
+                Register8::C => write!(f, "C"),
+                Register8::D => write!(f, "D"),
+                Register8::E => write!(f, "E"),
+                Register8::H => write!(f, "H"),
+                Register8::L => write!(f, "L"),
+            },
+            Self::DoubleRegister(reg16) => match reg16 {
+                Register16::BC => write!(f, "BC"),
+                Register16::HL => write!(f, "HL"),
+                Register16::DE => write!(f, "DE"),
+            },
+            Self::Address(addr) => write!(f, "({:#06x})", addr),
         }
     }
 }
@@ -206,24 +193,20 @@ impl Registers {
 }
 
 impl fmt::Display for Registers {
-     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "a: {:#04x}, b: {:#04x}, c: {:#04x}, d: {:#04x}, e: {:#04x}, \
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "a: {:#04x}, b: {:#04x}, c: {:#04x}, d: {:#04x}, e: {:#04x}, \
                    h: {:#04x}, l: {:#04x} flags: {:08b}",
-               self.a,
-               self.b,
-               self.c,
-               self.d,
-               self.e,
-               self.h,
-               self.l,
-               self.flags)
-     }
+            self.a, self.b, self.c, self.d, self.e, self.h, self.l, self.flags
+        )
+    }
 }
 
-const ZERO_FLAG: u8       = 1 << 7;
-const SUBTRACT_FLAG: u8   = 1 << 6;
+const ZERO_FLAG: u8 = 1 << 7;
+const SUBTRACT_FLAG: u8 = 1 << 6;
 const HALF_CARRY_FLAG: u8 = 1 << 5;
-const CARRY_FLAG: u8      = 1 << 4;
+const CARRY_FLAG: u8 = 1 << 4;
 
 impl Cpu {
     pub fn new(memory: Rc<RefCell<Memory>>) -> Cpu {
@@ -269,10 +252,9 @@ impl Cpu {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn decode(&mut self) {
-        let mut memory = {
-            self.memory.borrow_mut()
-        };
+        let mut memory = self.memory.borrow_mut();
 
         let opcode = memory.load(self.pc as usize);
 
@@ -310,10 +292,13 @@ impl Cpu {
                         self.sp = immediate;
                         "SP"
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
 
-                println!("{:#04x} {:#04x} LD {},{:#x}", low, high, reg_name, immediate);
+                println!(
+                    "{:#04x} {:#04x} LD {},{:#x}",
+                    low, high, reg_name, immediate
+                );
             }
             0x05 | 0x15 | 0x25 | 0x35 | 0x0d | 0x1d | 0x2d | 0x3d => {
                 // DEC r8
@@ -370,7 +355,8 @@ impl Cpu {
 
                 let carry = (self.regs.flags & CARRY_FLAG) >> 4;
 
-                self.regs.set_flag(CARRY_FLAG, self.regs.a & 0b1000_0000 != 0);
+                self.regs
+                    .set_flag(CARRY_FLAG, self.regs.a & 0b1000_0000 != 0);
 
                 self.regs.a = self.regs.a << 1 | carry;
 
@@ -387,9 +373,7 @@ impl Cpu {
                 // (BC, DE, HL).
 
                 let (value, reg_name) = match (opcode & 0xF0) >> 4 {
-                    0 => {
-                        (memory.load(self.regs.bc() as usize), "BC")
-                    }
+                    0 => (memory.load(self.regs.bc() as usize), "BC"),
                     1 => {
                         println!("DE: {:#06x}", self.regs.de());
                         (memory.load(self.regs.de() as usize), "DE")
@@ -406,7 +390,7 @@ impl Cpu {
 
                         (memory.load(hl as usize), "HL-")
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
 
                 self.regs.a = value;
@@ -426,9 +410,7 @@ impl Cpu {
                 let location = self.index(reg_index);
                 location.store8(&mut self.regs, &mut memory, immediate);
 
-                println!("{1:#04x}      LD {0},{1:#x}",
-                         location,
-                         immediate);
+                println!("{1:#04x}      LD {0},{1:#x}", location, immediate);
             }
             0x03 | 0x13 | 0x23 | 0x33 => {
                 // 16bit INC
@@ -453,7 +435,7 @@ impl Cpu {
 
                         "SP"
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
 
                 println!("{:9} INC {}", " ", reg_name);
@@ -474,7 +456,8 @@ impl Cpu {
                 self.pc = if immediate >= 0 {
                     self.pc.saturating_add(immediate as u16)
                 } else {
-                    let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
+                    let immediate = immediate.abs();
+                    self.pc.saturating_sub(immediate as u16)
                 };
                 return;
             }
@@ -495,7 +478,8 @@ impl Cpu {
                     self.pc = if immediate >= 0 {
                         self.pc.saturating_add(immediate as u16)
                     } else {
-                        let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
+                        let immediate = immediate.abs();
+                        self.pc.saturating_sub(immediate as u16)
                     };
                 }
                 return;
@@ -517,7 +501,8 @@ impl Cpu {
                     self.pc = if immediate >= 0 {
                         self.pc.saturating_add(immediate as u16)
                     } else {
-                        let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
+                        let immediate = immediate.abs();
+                        self.pc.saturating_sub(immediate as u16)
                     };
                 }
                 return;
@@ -545,7 +530,7 @@ impl Cpu {
 
                         "SP"
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
 
                 println!("{:9} DEC {}", " ", reg_name);
@@ -653,9 +638,10 @@ impl Cpu {
                         let reg_index = opcode & 0b0111;
                         let location = self.index(reg_index);
 
-                        self.regs.a = self.regs.a.wrapping_sub(
-                            location.load8(&self.regs, &memory)
-                        );
+                        self.regs.a = self
+                            .regs
+                            .a
+                            .wrapping_sub(location.load8(&self.regs, &memory));
 
                         self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
                         self.regs.set_flag(SUBTRACT_FLAG, true);
@@ -699,7 +685,7 @@ impl Cpu {
                         panic!("Unknown opcode");
                     }
                 }
-            },
+            }
             0xc1 | 0xd1 | 0xe1 | 0xf1 => {
                 // POP r16
                 //
@@ -737,7 +723,7 @@ impl Cpu {
 
                         "AF"
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
 
                 println!("{:9} POP {}", " ", reg_name);
@@ -796,7 +782,7 @@ impl Cpu {
 
                         "AF"
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
 
                 println!("{:9} PUSH {}", " ", reg_name);
@@ -896,7 +882,8 @@ impl Cpu {
 
                                 location.store8(&mut self.regs, &mut memory, value);
 
-                                self.regs.set_flag(CARRY_FLAG, initial_value & 0b1000_0000 != 0);
+                                self.regs
+                                    .set_flag(CARRY_FLAG, initial_value & 0b1000_0000 != 0);
                                 self.regs.set_flag(ZERO_FLAG, value == 0);
 
                                 self.regs.set_flag(SUBTRACT_FLAG, false);
@@ -986,7 +973,8 @@ impl Cpu {
                     self.pc = if immediate >= 0 {
                         self.pc.saturating_add(immediate as u16)
                     } else {
-                        let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
+                        let immediate = immediate.abs();
+                        self.pc.saturating_sub(immediate as u16)
                     };
                 }
                 return;
@@ -1008,7 +996,8 @@ impl Cpu {
                     self.pc = if immediate >= 0 {
                         self.pc.saturating_add(immediate as u16)
                     } else {
-                        let immediate = immediate.abs(); self.pc.saturating_sub(immediate as u16)
+                        let immediate = immediate.abs();
+                        self.pc.saturating_sub(immediate as u16)
                     };
                 }
                 return;
@@ -1074,7 +1063,6 @@ impl Cpu {
                 self.regs.a = memory.load(addr as usize);
 
                 println!("{:9} LD ({:#06x}),A", " ", addr);
-
             }
             0xf3 => {
                 // LD A,(C)
@@ -1084,7 +1072,6 @@ impl Cpu {
                 self.regs.a = memory.load(self.regs.c as usize);
 
                 print!("{:10} LD A,(C)", " ");
-
             }
             0xfe => {
                 self.pc += 1;
@@ -1104,7 +1091,7 @@ impl Cpu {
 
                 println!("{:10} CP {:#04x}", " ", immediate);
             }
-            _ => println!("Unknown opcode")
+            _ => println!("Unknown opcode"),
         }
 
         self.pc += 1;
@@ -1113,7 +1100,11 @@ impl Cpu {
 }
 
 impl fmt::Display for Cpu {
-     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "pc: {:#06x}, sp: {:#06x}, {}", self.pc, self.sp, self.regs)
-     }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "pc: {:#06x}, sp: {:#06x}, {}",
+            self.pc, self.sp, self.regs
+        )
+    }
 }

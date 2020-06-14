@@ -14,7 +14,7 @@ const BUFFER_HEIGHT: u16 = 256;
 const BUFFER_WIDTH: u16 = 256;
 
 const BUFFER_SIZE: usize =
-    (BUFFER_HEIGHT as usize * BUFFER_WIDTH as usize * BYTES_PER_PIXEL as usize);
+    BUFFER_HEIGHT as usize * BUFFER_WIDTH as usize * BYTES_PER_PIXEL as usize;
 
 pub struct GpuBuffer {
     pub buffer: [u8; BUFFER_SIZE],
@@ -49,8 +49,8 @@ pub struct Gpu {
 }
 
 impl Gpu {
-    pub fn new(memory: Rc<RefCell<Memory>>) -> Gpu {
-        Gpu {
+    pub fn new(memory: Rc<RefCell<Memory>>) -> Self {
+        Self {
             memory,
             ly: 0,
             scy: 0,

@@ -1,9 +1,4 @@
-#![warn(
- clippy::all,
- clippy::pedantic,
- clippy::nursery,
- clippy::cargo,
-)]
+#![warn(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo)]
 
 mod cartridge;
 mod cpu;
@@ -11,30 +6,24 @@ mod gpu;
 mod input;
 mod memory;
 
+use std::cell::RefCell;
 use std::env;
 use std::error;
 use std::fs;
-use std::io;
-use std::cell::RefCell;
 use std::rc::Rc;
-use std::str;
 
-use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::surface::Surface;
 
 use cartridge::Cartridge;
 use memory::IORegisters;
-use rand::prelude::*;
-
 use memory::Rom;
 use memory::Vram;
-use memory::IORegisters;
 
-use input::{Input,JoypadButton};
-
+use input::{Input, JoypadButton};
 
 fn main() -> Result<(), Box<dyn error::Error>> {
     let boot_rom_path = env::args().nth(1).expect("Boot ROM required");
@@ -74,7 +63,8 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
 
-    let window = video_subsystem.window("gb", 160, 144)
+    let window = video_subsystem
+        .window("gb", 160, 144)
         .position_centered()
         .opengl()
         .build()
@@ -90,32 +80,34 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
     let mut event_pump = sdl_context.event_pump()?;
 
-
     let mut _step = false;
     'running: loop {
         let mut _next = false;
 
         for event in event_pump.poll_iter() {
             match event {
-                Event::KeyDown { keycode: Some(Keycode::Escape), .. } | Event::Quit {..} => {
-                    break 'running
-                },
+                Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                }
+                | Event::Quit { .. } => break 'running,
                 _ => {}
             }
         }
 
         for _ in 1..50 {
-        // if ! step || next {
-        cpu.decode();
-        //}
+            // if ! step || next {
+            cpu.decode();
+            //}
         }
 
-        gpu.borrow_mut().display(&mut canvas, &mut texture, &mut gpu_buffer);
+        gpu.borrow_mut()
+            .display(&mut canvas, &mut texture, &mut gpu_buffer);
 
         match Input::new(&mut event_pump) {
             Some(Input::Joypad(JoypadButton::Up)) => println!("UP"),
             Some(Input::Joypad(JoypadButton::Down)) => println!("Down"),
-            _ => {},
+            _ => {}
         }
     }
 
