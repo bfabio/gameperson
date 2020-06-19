@@ -16,12 +16,12 @@ const BUFFER_WIDTH: u16 = 256;
 const BUFFER_SIZE: usize =
     BUFFER_HEIGHT as usize * BUFFER_WIDTH as usize * BYTES_PER_PIXEL as usize;
 
-pub struct GpuBuffer {
+pub struct Buffer {
     pub buffer: [u8; BUFFER_SIZE],
 }
 
-impl GpuBuffer {
-    pub fn new() -> Self {
+impl Buffer {
+    pub const fn new() -> Self {
         Self {
             buffer: [0; BUFFER_SIZE],
         }
@@ -62,7 +62,7 @@ impl Gpu {
         &mut self,
         canvas: &mut Canvas<Window>,
         texture: &mut Texture,
-        buffer: &mut GpuBuffer,
+        buffer: &mut Buffer,
     ) {
         if self.ly == 0 {
             let memory = self.memory.borrow();

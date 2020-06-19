@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let mut cpu = cpu::Cpu::new(Rc::clone(&mem));
 
     let gpu = gpu::Gpu::new(Rc::clone(&mem));
-    let mut gpu_buffer = gpu::GpuBuffer::new();
+    let mut gpu_buffer = gpu::Buffer::new();
 
     let gpu = Rc::new(RefCell::new(gpu));
     let io_registers = IORegisters::new(Rc::clone(&gpu));
