@@ -378,7 +378,7 @@ impl Memory {
 
         self.mappings
             .iter()
-            .find(|m| m.address_range.start <= addr && m.address_range.end > addr)
+            .find(|m| m.address_range.contains(&addr))
     }
 
     fn mapping_mut(&mut self, address: usize) -> Option<&mut Mapping> {
