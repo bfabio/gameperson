@@ -365,6 +365,29 @@ impl Cpu {
                 self.regs.set_flag(HALF_CARRY_FLAG, false);
 
                 print!("{:10} RLA", " ");
+            0x09 | 0x19 | 0x29 | 0x39 => {
+                // ADD HL,n
+                //
+                // Add n to HL.
+                //
+                // flags:
+                // Z: No change
+                // N: 0
+                // H: Set if carry from bit 11
+                // C: Set if carry from bit 15.
+
+                let operand = match opcode {
+                    0x09 => self.regs.bc(),
+                    0x19 => self.regs.de(),
+                    0x29 => self.regs.hl(),
+                    0x39 => self.sp,
+                    _ => unreachable!(),
+                };
+
+                self.regs.write_hl(self.regs.hl().wrapping_add(operand));
+
+                self.regs.set_flag(SUBTRACT_FLAG, false);
+                // XXX: unimplemented: H and C
             }
             0x0a | 0x1a | 0x2a | 0x3a => {
                 // LD A,(r16)
