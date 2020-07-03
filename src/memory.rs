@@ -140,7 +140,7 @@ pub struct IORegisters {
 
 impl IORegisters {
     pub fn new(gpu: Rc<RefCell<Gpu>>) -> Self {
-        IORegisters {
+        Self {
             mem: [0; 0x7f],
             gpu,
         }
@@ -225,8 +225,8 @@ pub struct Vram {
 }
 
 impl Vram {
-    pub fn new() -> Self {
-        Vram { mem: [0; 0x2000] }
+    pub const fn new() -> Self {
+        Self { mem: [0; 0x2000] }
     }
 }
 
@@ -279,8 +279,8 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn new() -> Memory {
-        Memory {
+    pub fn new() -> Self {
+        Self {
             // 8KiB
             // ram: vec![0; 0x2000],
 
