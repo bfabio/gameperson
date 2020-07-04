@@ -1088,6 +1088,22 @@ impl Cpu {
                 println!("{:9} LD ({:#06x}),A", " ", addr);
             }
             0xf3 => {
+            0xd9 => {
+                // RETI
+                //
+                // Pop two bytes from stack and jump to that address then enable interrupts.
+
+                let high = memory.load(self.sp as usize);
+                self.sp += 1;
+                let low = memory.load(self.sp as usize);
+                self.sp += 1;
+
+                self.pc = u16::from_be_bytes([high, low]);
+
+                cycles = 16;
+                return cycles;
+                // XXX: unimplemented: re-enable interrupts
+            }
                 // LD A,(C)
                 //
                 // Store A into the memory location at register C.
