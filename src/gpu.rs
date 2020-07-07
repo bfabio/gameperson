@@ -107,12 +107,10 @@ impl Gpu {
         let tile_end = tile_start + 16;
 
         let mut tile: [u8; 16] = [0; 16];
-        let mut i: usize = 0;
 
         // Tile RAM
-        for a in tile_start..tile_end {
-            tile[i] = memory.load(a as usize);
-            i += 1;
+        for (i, addr) in (tile_start..tile_end).enumerate() {
+            tile[i] = memory.load(addr as usize);
         }
 
         tile
