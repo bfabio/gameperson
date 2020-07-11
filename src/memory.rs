@@ -321,13 +321,10 @@ impl Memory {
     }
 
     pub fn load(&self, address: usize) -> u8 {
-        match self.mapping(address) {
-            Some(mapping) => {
-                return mapping
-                    .region
-                    .read(address as u16 - mapping.address_range.start);
-            }
-            _ => {}
+        if let Some(mapping) = self.mapping(address) {
+            return mapping
+                .region
+                .read(address as u16 - mapping.address_range.start);
         }
 
         match address {
