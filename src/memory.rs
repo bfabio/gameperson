@@ -162,9 +162,7 @@ impl Region for IORegisters {
             // BG map when drawing exceeds the lower (right) border of the BG map area.
             // // 0x43 => {
             // }
-            0x42 => {
-                self.gpu.borrow().scy
-            }
+            0x42 => self.gpu.borrow().scy,
             // 0xff44: LY - LCDC Y-Coordinate
             // Indicates the vertical line to which the present data is
             // transferred to the LCD Driver.
@@ -173,9 +171,7 @@ impl Region for IORegisters {
             // The values between 144 and 153 indicate the V-Blank period.
             //
             // Writing will reset the counter.
-            0x44 => {
-                self.gpu.borrow().ly
-            }
+            0x44 => self.gpu.borrow().ly,
             _ => {
                 print!("(Fake read from I/O register at {:#06x}) ", address);
                 0x01

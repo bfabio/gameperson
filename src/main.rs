@@ -32,9 +32,10 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let boot_rom = fs::read(&boot_rom_path)?;
     let rom = fs::read(&rom_path)?;
 
-    match Cartridge::new(&rom) {
-        Some(cartridge) => println!("Cartridge info\n{}", &cartridge),
-        None => eprintln!("Can't parse cartridge header"),
+    if let Some(cartridge) = Cartridge::new(&rom) {
+        println!("Cartridge info\n{}", &cartridge);
+    } else {
+        eprintln!("Can't parse cartridge header");
     }
 
     let mut mem = memory::Memory::new();
