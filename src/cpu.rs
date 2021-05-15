@@ -365,6 +365,7 @@ impl Cpu {
                 self.regs.set_flag(HALF_CARRY_FLAG, false);
 
                 print!("{:10} RLA", " ");
+            }
             0x09 | 0x19 | 0x29 | 0x39 => {
                 // ADD HL,n
                 //
@@ -1087,7 +1088,6 @@ impl Cpu {
 
                 println!("{:9} LD ({:#06x}),A", " ", addr);
             }
-            0xf3 => {
             0xd9 => {
                 // RETI
                 //
@@ -1100,15 +1100,16 @@ impl Cpu {
 
                 self.pc = u16::from_be_bytes([high, low]);
 
-                cycles = 16;
-                return cycles;
+                self.cycles = 16;
                 // XXX: unimplemented: re-enable interrupts
             }
+            0xf2 => {
                 // LD A,(C)
+                // aka LD A,($FF00+C)
                 //
-                // Store A into the memory location at register C.
+                // Put value at address 0xFF00 + register C into A.
 
-                self.regs.a = memory.load(self.regs.c as usize);
+                self.regs.a = memory.load(self.regs.c as usize + 0xff00);
 
                 print!("{:10} LD A,(C)", " ");
             }
