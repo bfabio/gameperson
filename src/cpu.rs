@@ -324,6 +324,44 @@ impl Cpu {
 
                 println!("{:9} DEC {}", " ", location);
             }
+            0x07 => {
+                // RLCA
+                //
+                // Rotate A left. Old bit 7 to Carry flag.
+                //
+                //  before:
+                //
+                //  +---+  +-------------------------------+
+                //  |   |  | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
+                //  +---+  +-------------------------------+
+                //      C                                  A
+                //
+                //  after
+                //
+                //  +---+  +---------------------------------+
+                //  | 7 |  | 6 | 5 | 4 | 3 | 2 | 1 | 0 | 0x0 |
+                //  +---+  +---------------------------------+
+                //      C                                  A
+                //
+                // flags:
+                // Z: 0 (GBCPUman.pdf v1.01 is wrong on this one)
+                // N: 0
+                // H: 0
+                // C: Contains old bit 7 data.
+
+                self.regs
+                    .set_flag(CARRY_FLAG, self.regs.a & 0b1000_0000 != 0);
+
+                self.regs.a <<= 1;
+
+                self.regs.set_flag(ZERO_FLAG, false);
+                self.regs.set_flag(SUBTRACT_FLAG, false);
+                self.regs.set_flag(HALF_CARRY_FLAG, false);
+
+                print!("{:10} RLA", " ");
+                self.current_op = format!("{:10} RLCA", " ");
+                cycles = 4;
+            }
             0x17 => {
                 // RLA
                 // (Note this is different from RL A)
