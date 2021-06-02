@@ -14,22 +14,29 @@ use crate::gpu::Gpu;
 ///!
 ///!    🔴 0x0000-0x00ff - Restart and Interrupt Vectors (255 bytes)
 ///!    ============================================================
-///!    Jump vectors for the 8 RST opcodes (at 0x0000, 0x0008, 0x0010, 0x0018,
-///!    0x0020, 0x0028, 0x0030 and 0x0038) and the Interrupt Vector Table
-///!    for the following interrupts:
-///!
-///!    * V-Blank (at 0x0040)
-///!    * LCDC (at 0x0048)
-///!    * Timer (at 0x0050)
-///!    * Serial (at 0x0058)
-///!    * Joypad (at 0x0060)
+///!    Jump vectors for the 8 RST opcodes:
+///!      * RST 00h (at 0x0000)
+///!      * RST 08h (at 0x0008)
+///!      * RST 10h (at 0x0010)
+///!      * RST 18h (at 0x0018)
+///!      * RST 20h (at 0x0020)
+///!      * RST 28h (at 0x0028)
+///!      * RST 30h (at 0x0030)
+///!      * RST 38h (at 0x0038)
+///
+///!    and the Interrupt Vector Table for the following interrupts:
+///!      * V-Blank (at 0x0040)
+///!      * LCDC    (at 0x0048)
+///!      * Timer   (at 0x0050)
+///!      * Serial  (at 0x0058)
+///!      * Joypad  (at 0x0060)
 ///!
 ///!    When an interrupt is the program stops where it is, and jumps to the
 ///!    specified location in the Vector Table.
 ///!
 ///!    🕹 0x0100-0x014f - Cartridge Header Area
 ///!    ========================================
-///!    Information about the cartridge that is inserted, including; type of cartridge,
+///!    Information about the inserted cartridge, including; type of cartridge,
 ///!    size of rom, size of ram, a Nintendo logo, and other information.
 ///!
 ///!    💾 0x0150-0x3fff - Cartridge ROM, Bank 0 (16048 bytes)
@@ -93,7 +100,7 @@ use crate::gpu::Gpu;
 ///
 ///!    0xfe00-0xffff
 ///!    ====================================
-///!    0xfe00-0xfe9f   Sprite Attribute Table (OAM)
+///!    0xfe00-0xfe9f   Sprite Attribute Table (aka OAM)
 ///!    0xfea0-0xfeff   Not usable
 ///!    0xff00-0xff7f   I/O Registers
 ///!    0xff80-0xfffe   High RAM (AKA HRAM, AKA Zero Page)
@@ -107,6 +114,7 @@ pub trait Region {
 
 pub enum AddressSpaceAction {
     Unmap(u16),
+    DmaTransfer(u8),
 }
 
 pub struct Rom {
@@ -152,6 +160,15 @@ impl Region for IORegisters {
 
     fn read(&self, address: u16) -> u8 {
         match address {
+            0x00 => {
+                // Joypad buttons
+                // TODO
+                // All unpressed
+                0xff
+            }
+            // 0xff42 - SCY - Scroll Y
+            0x40 => self.gpu.borrow().lcdc,
+            0x41 => self.gpu.borrow().stat,
             // 0xff42 - SCY - Scroll Y
             // 0xff43 - SCX - Scroll X
             // Specifies the position in the 256x256 pixels BG map (32x32 tiles)
@@ -172,16 +189,35 @@ impl Region for IORegisters {
             //
             // Writing will reset the counter.
             0x44 => self.gpu.borrow().ly,
+
+            // TODO doc
+            0x45 => self.gpu.borrow().lyc,
             _ => {
-                print!("(Fake read from I/O register at {:#06x}) ", address);
-                0x01
+                self.mem[address as usize]
             }
         }
     }
     fn write(&mut self, address: u16, value: u8) -> Option<AddressSpaceAction> {
         match address {
+            0x01 => {
+                println!("Serial: {}", value);
+                None
+            }
+            // 0xff02: SC - Serial Transfer Control (R/W)
+            0x02 => {
+                if value == 0x81 {
+                    // Print 0xff01 (SB - Serial transfer data (R/W))
+                    print!("{}", self.mem[0x01]);
+                }
+                None
+            }
             // 0xff40: LCDC - LCD Control (R/W)
             0x40 => {
+                self.gpu.borrow_mut().lcdc = value;
+                None
+            },
+            0x41 => {
+                self.gpu.borrow_mut().stat = value;
                 None
             }
             // 0xff42 - SCY - Scroll Y
@@ -198,13 +234,39 @@ impl Region for IORegisters {
                 self.gpu.borrow_mut().scy = value;
                 None
             }
+            0x44 => {
+                unimplemented!();
+            }
+            // FF45 - LYC - LY Compare (R/W)
+            // The gameboy permanently compares the value of the LYC and LY registers.
+            // When both values are identical, the coincident bit in the STAT register
+            // becomes set, and (if enabled) a STAT interrupt is requested.
+            0x45 => {
+                self.gpu.borrow_mut().lyc = value;
+                None
+            }
+            // Writing to this register launches a DMA transfer from ROM or RAM to
+            // Sprite Attribute Table (aka OAM)
+            // The written value specifies the transfer source address divided by 0x100h
+            //
+            // eg.
+            // value == 0x1b
+            // copies   0x1b00-0x1b9f to
+            //          0xfe00-0xfe9f
+            //
+            // value can be 0x00 to 0xf1
+            0x46 => {
+                Some(AddressSpaceAction::DmaTransfer(value))
+            }
             // 0xff50: Unmap the boot ROM (TODO: Find the documentation)
-            0x50 => Some(AddressSpaceAction::Unmap(0x0000)),
+            0x50 => {
+                Some(AddressSpaceAction::Unmap(0x0000))
+            },
             _ => {
-                println!(
-                    "(Fake write to I/O register at {:#06x} ({:#04x})) ",
-                    address, value
-                );
+                //println!(
+                //    "(Fake write to I/O register at {:#06x} ({:#04x})) ",
+                //    address, value
+                //);
                 self.mem[address as usize] = value;
                 None
             }
@@ -231,7 +293,7 @@ impl Region for Vram {
 
     fn read(&self, address: u16) -> u8 {
         if address == 0x1910 {
-            return 0x19 as u8;
+            return 0x19_u8;
         }
 
         self.mem[address as usize]
@@ -245,6 +307,9 @@ impl Region for Vram {
         );*/
 
         self.mem[address as usize] = value;
+        if (0x9800..=0x9fff).contains(&address) {
+            println!("Write to {:#04x}: {:#04x}", address, value);
+        }
         None
     }
 
@@ -268,8 +333,10 @@ struct Mapping {
 
 pub struct Memory {
     ram: Vec<u8>,
+    oam: Vec<u8>,
     zero_page: Vec<u8>,
     cartridge: Vec<u8>,
+    pub ie: u8,
 
     mappings: Vec<Mapping>,
 }
@@ -283,11 +350,17 @@ impl Memory {
             // FIXME
             ram: vec![0; 0x20000],
 
+            /// 0xa0: 160 bytes
+            oam: vec![0; 0xa0],
+
             /// 127 bytes
             zero_page: vec![0; 127],
 
             cartridge: vec![],
             mappings: vec![],
+
+            // Interrupt Enable (0xffff)
+            ie: 0,
         }
     }
 
@@ -311,9 +384,32 @@ impl Memory {
         self.mappings.push(mapping);
     }
 
-    pub fn unmap(&mut self, _address: u16) {
-        println!("Unmapping Boot ROM");
-        self.cartridge = vec![];
+    pub fn unmap(&mut self, address: u16) {
+        if let Some(pos) = self
+            .mappings
+            .iter()
+            .position(|mapping| mapping.address_range.contains(&address))
+        {
+            println!("Unmapping Boot ROM at {:#04x}", address);
+
+            self.mappings.remove(pos);
+        }
+
+        for m in &self.mappings {
+            println!(
+                "- {:#04x}..{:#04x}",
+                m.address_range.start, m.address_range.end
+            );
+        }
+    }
+
+    // XXX doc
+    fn dma(&mut self, addr: u8) {
+        let address = (addr as u16) << 8;
+        for a in address..=address+0x9f {
+            // XXX improve
+            self.oam[a as usize - address as usize] = self.load(a as usize)
+        }
     }
 
     pub fn load(&self, address: usize) -> u8 {
@@ -325,7 +421,10 @@ impl Memory {
 
         match address {
             // Boot ROM
-            (0x0000..=0x00ff) => self.cartridge[address],
+            (0x0000..=0x00ff) => {
+                println!("address: {}", address);
+                self.cartridge[address]
+            }
             (0x0100..=0x0103) => 0x00,
             // Cartridge ROM
             (0x0104..=0x7fff) => {
@@ -342,6 +441,13 @@ impl Memory {
                         address,
                         nintendo_logo[address - 0x0104]
                     );
+                    println!("Mappings:");
+                    for mapping in &self.mappings {
+                        println!(
+                            "  {:#04x}..{:#04x}",
+                            mapping.address_range.start, mapping.address_range.end
+                        );
+                    }
                     return nintendo_logo[address - 0x0104];
                 }
                 // Happens with the boot ROM which is just 256 bytes.
@@ -359,10 +465,20 @@ impl Memory {
             // Internal RAM
             (0xc000..=0xdfff) => self.ram[address - 0xc000],
 
+            // Mirror of 0xc000~0xddff (Echo RAM) - Typically not used
+            // FIXME Used by Tetris?
+            0xe000..=0xfdff => self.ram[address - 0x2000 - 0xc000],
+
+            // Sprite Attribute Table (aka OAM)
+            0xfe00..=0xfe9f => self.oam[address - 0xfe00],
+
             // Zero Page
             (0xff80..=0xfffe) => self.zero_page[address - 0xff80],
 
-            _ => panic!("Unsupported load from address {:#06x}", address),
+            // FIXME: unimplemented: IE Interrupt Enable
+            0xffff => self.ie,
+
+            _ => 0, // panic!("Unsupported load from address {:#06x}", address),
         }
     }
 
@@ -379,32 +495,32 @@ impl Memory {
 
         self.mappings
             .iter_mut()
-            .find(|m| m.address_range.start <= addr && m.address_range.end > addr)
+            .find(|m| m.address_range.contains(&addr))
     }
 
     pub fn write(&mut self, address: usize, value: u8) {
-        match self.mapping_mut(address) {
-            Some(mapping) => {
-                match mapping
-                    .region
-                    .write(address as u16 - mapping.address_range.start, value)
-                {
-                    Some(AddressSpaceAction::Unmap(u)) => self.unmap(u),
-                    _ => {}
-                }
+        if let Some(mapping) = self.mapping_mut(address) {
+            match mapping.region.write(address as u16 - mapping.address_range.start, value) {
+                Some(AddressSpaceAction::Unmap(u)) => self.unmap(u),
+                Some(AddressSpaceAction::DmaTransfer(u)) => self.dma(u),
+                _ => {},
             }
-            _ => println!("Invalid write address {:#06x}", address),
         }
 
         match address {
             // Cartridge ROM
-            (0x0..=0x7fff) => panic!(),
+            //(0x0..=0x7fff) => panic!(),
 
             // Internal RAM
             (0xc000..=0xdfff) => self.ram[address - 0xc000] = value,
 
+            // Sprite Attribute Table (aka OAM)
+            0xfe00..=0xfe9f => self.oam[address - 0xfe00] = value,
+
             // Zero Page
             (0xff80..=0xfffe) => self.zero_page[address - 0xff80] = value,
+
+            0xffff => self.ie = value,
 
             _ => {}
         }
