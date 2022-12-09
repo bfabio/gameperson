@@ -142,7 +142,7 @@ impl Region for Rom {
 }
 
 pub struct IORegisters {
-    mem: [u8; 0x7f],
+    pub mem: [u8; 0x7f],
     gpu: Rc<RefCell<Gpu>>,
 }
 
@@ -160,12 +160,9 @@ impl Region for IORegisters {
 
     fn read(&self, address: u16) -> u8 {
         match address {
-            0x00 => {
-                // Joypad buttons
-                // TODO
-                // All unpressed
-                0xff
-            }
+            // Joypad buttons
+            // TODO doc
+            0x00 => self.mem[0x00],
             // 0xff42 - SCY - Scroll Y
             0x40 => self.gpu.borrow().lcdc,
             0x41 => self.gpu.borrow().stat,
@@ -199,8 +196,12 @@ impl Region for IORegisters {
     }
     fn write(&mut self, address: u16, value: u8) -> Option<AddressSpaceAction> {
         match address {
+            0x00 => {
+                self.mem[0x00] = value;
+                None
+            }
             0x01 => {
-                println!("Serial: {}", value);
+                // println!("Serial: {}", value);
                 None
             }
             // 0xff02: SC - Serial Transfer Control (R/W)
@@ -339,6 +340,9 @@ pub struct Memory {
     pub ie: u8,
 
     mappings: Vec<Mapping>,
+
+    // Whether the Boot ROM is currently mapped at 0x0000.
+    boot_rom_mapped: bool,
 }
 
 impl Memory {
@@ -361,6 +365,8 @@ impl Memory {
 
             // Interrupt Enable (0xffff)
             ie: 0,
+
+            boot_rom_mapped: false,
         }
     }
 
@@ -382,6 +388,11 @@ impl Memory {
         };
 
         self.mappings.push(mapping);
+
+        // The first mapping at 0x0000 is the Boot ROM.
+        if address == 0x0000 && ! self.boot_rom_mapped {
+            self.boot_rom_mapped = true;
+        }
     }
 
     pub fn unmap(&mut self, address: u16) {
@@ -390,7 +401,7 @@ impl Memory {
             .iter()
             .position(|mapping| mapping.address_range.contains(&address))
         {
-            println!("Unmapping Boot ROM at {:#04x}", address);
+            println!("Unmapping region at {:#04x}", address);
 
             self.mappings.remove(pos);
         }
@@ -428,28 +439,6 @@ impl Memory {
             (0x0100..=0x0103) => 0x00,
             // Cartridge ROM
             (0x0104..=0x7fff) => {
-                if address <= 0x0133 {
-                    let nintendo_logo = [
-                        0xce, 0xed, 0x66, 0x66, 0xcc, 0x0d, 0x00, 0x0b, 0x03, 0x73, 0x00, 0x83,
-                        0x00, 0x0c, 0x00, 0x0d, 0x00, 0x08, 0x11, 0x1f, 0x88, 0x89, 0x00, 0x0e,
-                        0xdc, 0xcc, 0x6e, 0xe6, 0xdd, 0xdd, 0xd9, 0x99, 0xbb, 0xbb, 0x67, 0x63,
-                        0x6e, 0x0e, 0xec, 0xcc, 0xdd, 0xdc, 0x99, 0x9f, 0xbb, 0xb9, 0x33, 0x3e,
-                    ];
-
-                    println!(
-                        "ADDR: {:#06x} value: {:#04x}",
-                        address,
-                        nintendo_logo[address - 0x0104]
-                    );
-                    println!("Mappings:");
-                    for mapping in &self.mappings {
-                        println!(
-                            "  {:#04x}..{:#04x}",
-                            mapping.address_range.start, mapping.address_range.end
-                        );
-                    }
-                    return nintendo_logo[address - 0x0104];
-                }
                 // Happens with the boot ROM which is just 256 bytes.
                 // Let's return blank data
 
@@ -477,8 +466,7 @@ impl Memory {
 
             // FIXME: unimplemented: IE Interrupt Enable
             0xffff => self.ie,
-
-            _ => 0, // panic!("Unsupported load from address {:#06x}", address),
+            _ => 0x00,
         }
     }
 
@@ -501,7 +489,10 @@ impl Memory {
     pub fn write(&mut self, address: usize, value: u8) {
         if let Some(mapping) = self.mapping_mut(address) {
             match mapping.region.write(address as u16 - mapping.address_range.start, value) {
-                Some(AddressSpaceAction::Unmap(u)) => self.unmap(u),
+                Some(AddressSpaceAction::Unmap(u)) if self.boot_rom_mapped => {
+                    self.boot_rom_mapped = false;
+                    self.unmap(u);
+                }
                 Some(AddressSpaceAction::DmaTransfer(u)) => self.dma(u),
                 _ => {},
             }

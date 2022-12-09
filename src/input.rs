@@ -37,9 +37,21 @@ impl Input {
                 ..
             }) => Some(Self::Joypad(JoypadButton::Right)),
             Some(Event::KeyDown {
+                keycode: Some(Keycode::RShift),
+                ..
+            }) => Some(Self::Joypad(JoypadButton::Select)),
+            Some(Event::KeyDown {
                 keycode: Some(Keycode::Return),
                 ..
             }) => Some(Self::Joypad(JoypadButton::Start)),
+            Some(Event::KeyDown {
+                keycode: Some(Keycode::LCtrl),
+                ..
+            }) => Some(Self::Joypad(JoypadButton::A)),
+            Some(Event::KeyDown {
+                keycode: Some(Keycode::LAlt),
+                ..
+            }) => Some(Self::Joypad(JoypadButton::B)),
             _ => None,
         }
     }

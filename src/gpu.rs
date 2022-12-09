@@ -91,7 +91,7 @@ impl Gpu {
         }
     }
 
-    pub fn display(
+    pub fn process(
         &mut self,
         canvas: &mut Canvas<Window>,
         texture: &mut Texture,
@@ -123,6 +123,7 @@ impl Gpu {
             let mut tile_x: u8;
             let mut tile_y: u8;
 
+            // Background
             let tile_map_range = if self.lcdc & 0b1000 == 0 {
                 // BG Map Data 1
                 0x9800..=0x9bff
@@ -134,11 +135,24 @@ impl Gpu {
             for (i, tile_addr) in tile_map_range.enumerate() {
                 let tile_num = memory.load(tile_addr);
 
-                tile_x = (i % 32) as u8;
-                tile_y = (i / 32) as u8;
+                tile_x = ((i % 32) * 8) as u8;
+                tile_y = ((i / 32) * 8) as u8;
 
                 self.print_tile(self.get_tile(tile_num), &mut buffer.buffer, tile_x, tile_y);
             }
+
+            // Sprites
+            for sprite_addr in (0xfe00..=0xfe9f).step_by(4) {
+                let sprite_y = memory.load(sprite_addr) as u8;
+                let sprite_x = memory.load(sprite_addr + 1) as u8;
+                let tile_idx = memory.load(sprite_addr + 2) as u8;
+
+                // TODO sprite flip
+                let flags = memory.load(sprite_addr + 3);
+
+                self.draw_sprite(self.get_tile(tile_idx), &mut buffer.buffer, sprite_x, sprite_y);
+            }
+
             texture
                 .update(
                     None,
@@ -200,9 +214,6 @@ impl Gpu {
     }
 
     fn print_tile(&self, tile: [u8; 16], buffer: &mut [u8], x: u8, y: u8) {
-        assert!(x < 32);
-        assert!(y < 32);
-
         let mut xx;
         let mut yy;
         for row in 0..=7 {
@@ -211,14 +222,14 @@ impl Gpu {
             for col in 0..=7 {
                 let palette = (b.0 & (1 << col), b.1 & (1 << col));
                 let color = match palette {
-                    (0, 0) => (0xff, 0xff, 0xff, 0xff),
-                    (_, 0) => (0xff, 0x00, 0x00, 0x00),
-                    (0, _) => (0xff, 0x00, 0xff, 0x00),
-                    (_, _) => (0xff, 0xff, 0x00, 0x00),
+                    (0, 0) => (0xff, 0xc4, 0xf0, 0xc2), // lighter
+                    (0, _) => (0xff, 0x1e, 0x60, 0x6e),
+                    (_, 0) => (0xff, 0x5a, 0xb9, 0xa8),
+                    (_, _) => (0xff, 0x2d, 0x1b, 0x00), // darkest
                 };
 
-                xx = x as i32 * 8 + (col as i8 - 7).abs() as i32;
-                yy = (y as i32 * 8) + row as i32;
+                xx = x as i32 + (col as i8 - 7).abs() as i32;
+                yy = y as i32 + row as i32;
 
                 let index =
                     (xx as usize + yy as usize * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
@@ -231,6 +242,49 @@ impl Gpu {
             }
         }
     }
+
+    // TODO generalize this
+    // TODO support 8x16 sprites
+    fn draw_sprite(&self, tile: [u8; 16], buffer: &mut [u8], x: u8, y: u8) {
+        if y < 8 || y >= 160 || x < 8 || x >= 168 {
+            return;
+        }
+
+        let sprite_start_col = (x % 8) as usize;
+        let sprite_start_row = (y % 8) as usize;
+
+        let y1 = y.saturating_sub(16);
+        let x1 = x.saturating_sub(8);
+
+        let mut xx;
+        let mut yy;
+        for row in sprite_start_row..=7 {
+            let b = (tile[row * 2], tile[1 + row * 2]);
+
+            for col in sprite_start_col..=7 {
+                let palette = (b.0 & (1 << col), b.1 & (1 << col));
+                let color = match palette {
+                    (0, 0) => (0xff, 0xc4, 0xf0, 0xc2), // lighter
+                    (0, _) => (0xff, 0x1e, 0x60, 0x6e),
+                    (_, 0) => (0xff, 0x5a, 0xb9, 0xa8),
+                    (_, _) => (0xff, 0x2d, 0x1b, 0x00), // darkest
+                };
+
+                xx = x1 as i32 + (col as i8 - 7).abs() as i32;
+                yy = y1 as i32 + row as i32;
+
+                let index =
+                    (xx as usize + yy as usize * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
+
+                // 4 bytes per pixel
+                buffer[index] = color.0;
+                buffer[index + 1] = color.1;
+                buffer[index + 2] = color.2;
+                buffer[index + 3] = color.3;
+            }
+        }
+    }
+
 }
 
 impl<'a> fmt::Display for Gpu {

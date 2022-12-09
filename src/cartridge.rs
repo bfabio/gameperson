@@ -288,5 +288,5 @@ impl<'a> Cartridge<'a> {
             licensee_code,
             destination_market,
         })
-    }
+}
 }

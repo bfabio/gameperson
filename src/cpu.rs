@@ -210,10 +210,10 @@ impl fmt::Display for Registers {
     }
 }
 
-const ZERO_FLAG: u8 = 1 << 7;
-const SUBTRACT_FLAG: u8 = 1 << 6;
-const HALF_CARRY_FLAG: u8 = 1 << 5;
-const CARRY_FLAG: u8 = 1 << 4;
+const ZERO_FLAG: u8 = 1 << 7; 
+const SUBTRACT_FLAG: u8 = 1 << 6; //64
+const HALF_CARRY_FLAG: u8 = 1 << 5; //32
+const CARRY_FLAG: u8 = 1 << 4; //16
 
 impl Cpu {
     pub fn new(memory: Rc<RefCell<Memory>>) -> Cpu {
@@ -408,6 +408,24 @@ impl Cpu {
                 self.current_op = format!("{:10} RLA", " ");
                 cycles = 4;
             }
+            0x1f => {
+                // RRA
+                // (Note this not the same instruction as RL A)
+
+                let carry = (self.regs.flags & CARRY_FLAG) >> 4;
+
+                self.regs
+                    .set_flag(CARRY_FLAG, self.regs.a & 0x1 != 0);
+
+                self.regs.a = self.regs.a >> 1 | carry << 7;
+
+                self.regs.set_flag(ZERO_FLAG, false);
+                self.regs.set_flag(SUBTRACT_FLAG, false);
+                self.regs.set_flag(HALF_CARRY_FLAG, false);
+
+                cycles = 4;
+            }
+
             0x09 | 0x19 | 0x29 | 0x39 => {
                 // ADD HL,n
                 //
@@ -518,6 +536,22 @@ impl Cpu {
                 self.current_op = format!("{:9} INC {}", " ", reg_name);
                 cycles = 8;
             }
+            0x08 => {
+                // LD (n), SP
+                //
+                // Put Stack Pointer (SP) at address n.
+                // TODO Check
+
+                self.pc += 1;
+                let low = memory.load(self.pc as usize);
+                self.pc += 1;
+                let high = memory.load(self.pc as usize);
+
+                memory.write((u16::from_be_bytes([high, low]) + 1) as usize, (self.sp & 0xf) as u8);
+                memory.write(u16::from_be_bytes([high, low]) as usize, ((self.sp & 0xf0) >> 8) as u8);
+
+                cycles = 20;
+            }
             0x18 => {
                 // JR n
                 //
@@ -541,6 +575,92 @@ impl Cpu {
                 cycles = 12;
 
                 return cycles;
+            }
+            0x27 => {
+                // DAA
+                //
+                // Decimal adjust register A.
+                //
+                // Set the A register to its content's representation of
+                // Binary Coded Decimal (BCD).
+                //
+                // flags:
+                // Z - Set if register A is zero.
+                // N - Not affected.
+                // H - Reset.
+                // C - Set or reset according to operation. TODO and doc (?)
+
+                // TODO
+                // self.regs.a = bcd(self.regs.a)
+
+                let mut reg = 0;
+                let mut carry = false;
+
+                if self.regs.flags & HALF_CARRY_FLAG != 0
+                    || (self.regs.flags & SUBTRACT_FLAG == 0 && self.regs.a & 0x0f > 0x09) {
+                    reg = 0x06;
+                }
+                if self.regs.flags & CARRY_FLAG != 0
+                    || (self.regs.flags & SUBTRACT_FLAG == 0 && self.regs.a > 0x99) {
+                    reg += 0x60;
+                    carry = true;
+                }
+
+                if self.regs.flags & SUBTRACT_FLAG == 0 {
+                    self.regs.a += reg;
+                } else {
+                    self.regs.a -= reg;
+                }
+
+                // if self.regs.flags & SUBTRACT_FLAG == 0 {
+                //     let mut reg: u16 = u16::from(self.regs.a);
+
+                //     if self.regs.a & 0x0f > 0x09 || self.regs.flags & HALF_CARRY_FLAG != 0 {
+                //         reg += 0x06;
+                //     }
+                //     if reg & 0x1f0 > 0x90 || self.regs.flags & CARRY_FLAG != 0 {
+                //         reg += 0x60;
+                //         self.regs.set_flag(CARRY_FLAG, true);
+                //     } else {
+                //         self.regs.set_flag(CARRY_FLAG, false);
+                //     }
+                //     self.regs.a = reg as u8;
+                // } else {
+                //     if self.regs.flags & HALF_CARRY_FLAG != 0 {
+                //         self.regs.a += 0xfa;
+                //     }
+                //     if self.regs.flags & CARRY_FLAG != 0 {
+                //         self.regs.a += 0xa0;
+                //     }
+                // }
+
+                // if (cpu->f.n) {
+                //     if (cpu->f.h) {
+                //         cpu->a += 0xFA;
+                //     }
+                //     if (cpu->f.c) {
+                //         cpu->a += 0xA0;
+                //     }
+                // } else {
+                //     int a = cpu->a;
+                //     if ((cpu->a & 0xF) > 0x9 || cpu->f.h) {
+                //         a += 0x6;
+                //     }
+                //     if ((a & 0x1F0) > 0x90 || cpu->f.c) {
+                //         a += 0x60;
+                //         cpu->f.c = 1;
+                //     } else {
+                //         cpu->f.c = 0;
+                //     }
+                //     cpu->a = a;
+                // }
+                // cpu->f.h = 0;
+                // cpu->f.z = !cpu->a;
+                self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
+                self.regs.set_flag(HALF_CARRY_FLAG, false);
+                self.regs.set_flag(CARRY_FLAG, carry);
+
+                cycles = 4;
             }
             0x28 => {
                 // JR Z,n
@@ -815,7 +935,28 @@ impl Cpu {
                         let (_, half_carry) = (self.regs.a & 0xf).overflowing_sub(n & 0xf);
                         self.regs.set_flag(HALF_CARRY_FLAG, half_carry);
                     }
-                    3 => unimplemented!("{:#04x} SBC A, opcode", self.pc),
+                    3 => {
+                        // SBC A,n
+                        //
+                        // Subtract n + Carry flag from A.
+                        //
+                        // flags:
+                        // Z - Set if result is zero.
+                        // N - Set.
+                        // H - Set if no borrow from bit 4.
+                        // C - Set if no borrow.
+
+                        let c = if self.regs.flags & CARRY_FLAG == 0 { 0 } else { 1 };
+                        let (result, carry) = self.regs.a.overflowing_sub(n + c);
+
+                        self.regs.set_flag(HALF_CARRY_FLAG, (self.regs.a & 0xf) + (n & 0xf) + c > 0xf);
+
+                        self.regs.a = result;
+
+                        self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
+                        self.regs.set_flag(SUBTRACT_FLAG, true);
+                        self.regs.set_flag(CARRY_FLAG, carry);
+                    }
                     4 => {
                         // AND n
                         //
@@ -902,7 +1043,7 @@ impl Cpu {
                 cycles = 8;
             }
             0xc8 => {
-                // RET NZ
+                // RET Z
                 //
                 // Return if Z flag is 1.
 
@@ -1308,6 +1449,42 @@ impl Cpu {
                 /* FIXME */
                 cycles = 4;
             }
+            0xd0 => {
+                // RET NC
+                //
+                // Return if C flag is 0.
+
+                if (self.regs.flags & CARRY_FLAG) == 0 {
+                    let high = memory.load(self.sp as usize);
+                    self.sp += 1;
+                    let low = memory.load(self.sp as usize);
+                    self.sp += 1;
+
+                    self.pc = u16::from_be_bytes([high, low]);
+
+                    cycles = 20;
+                    return cycles;
+                }
+                cycles = 8;
+            }
+            0xd8 => {
+                // RET C
+                //
+                // Return if C flag is 1.
+
+                if (self.regs.flags & CARRY_FLAG) != 0 {
+                    let high = memory.load(self.sp as usize);
+                    self.sp += 1;
+                    let low = memory.load(self.sp as usize);
+                    self.sp += 1;
+
+                    self.pc = u16::from_be_bytes([high, low]);
+
+                    cycles = 20;
+                    return cycles;
+                }
+                cycles = 8;
+            }
             0x20 => {
                 // JR NZ, n
                 //
@@ -1502,7 +1679,6 @@ impl Cpu {
                 self.sp -= 1;
                 memory.write(self.sp as usize, (self.pc >> 8) as u8);
                 self.sp -= 1;
-                println!("sp: {} {:#06x} {:#06x}", self.sp, opcode, self.pc);
                 memory.write(self.sp as usize, (self.pc & 0xff) as u8);
 
                 self.pc = u16::from(opcode - 0xc7);
@@ -1624,7 +1800,7 @@ impl Cpu {
             .write(self.sp as usize, (self.pc & 0xff) as u8);
 
 
-        println!("STATUS pc {:#04x}", self.sp);
+        // println!("STATUS pc {:#04x}", self.sp);
 
         // XXX: is this right?
         self.interrupts_enabled = false;

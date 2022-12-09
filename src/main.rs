@@ -100,7 +100,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
     let gpu = Rc::new(RefCell::new(gpu));
     let io_registers = IORegisters::new(Rc::clone(&gpu));
-    let b = Box::new(io_registers);
+    let mut b = Box::new(io_registers);
 
     // I/O Registers
     mem.borrow_mut().map(0xff00, b);
@@ -190,7 +190,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
             cycles += u16::from(cpu.decode());
         }
 
-        match gpu.borrow_mut().display(&mut canvas, &mut texture, &mut gpu_buffer, cycles) {
+        match gpu.borrow_mut().process(&mut canvas, &mut texture, &mut gpu_buffer, cycles) {
             Some(gpu::Interrupt::VBlank) => {
                 if cpu.interrupts_enabled && mem.borrow().ie & 0x1 != 0 {
                     cpu.vblank_int()
@@ -204,11 +204,43 @@ fn main() -> Result<(), Box<dyn error::Error>> {
             _ => (),
         }
 
-        // match Input::new(&mut event_pump) {
-        //     Some(Input::Joypad(JoypadButton::Up)) => println!("UP"),
-        //     Some(Input::Joypad(JoypadButton::Down)) => println!("Down"),
-        //     _ => {}
-        // }
+        match Input::new(&mut event_pump) {
+            // TODO doc
+            // FF00 - P1/JOYP - Joypad (R/W)
+            Some(Input::Joypad(JoypadButton::Up)) => {
+                mem.borrow_mut().write(0xff00, !0b0001_0100);
+                println!("Up");
+            }
+            Some(Input::Joypad(JoypadButton::Down)) => {
+                mem.borrow_mut().write(0xff00, !0b0001_1000);
+                println!("Down");
+            }
+            Some(Input::Joypad(JoypadButton::Right)) => {
+                mem.borrow_mut().write(0xff00, !0b0001_0001);
+                println!("Right");
+            }
+            Some(Input::Joypad(JoypadButton::Left)) => {
+                mem.borrow_mut().write(0xff00, !0b0001_0010);
+                println!("Left");
+            }
+            Some(Input::Joypad(JoypadButton::Start)) => {
+                mem.borrow_mut().write(0xff00, !0b0010_1000);
+                println!("Start");
+            }
+            Some(Input::Joypad(JoypadButton::Select)) => {
+                mem.borrow_mut().write(0xff00, !0b0010_0100);
+                println!("Select");
+            }
+            Some(Input::Joypad(JoypadButton::A)) => {
+                mem.borrow_mut().write(0xff00, !0b0010_0001);
+                println!("A");
+            }
+            Some(Input::Joypad(JoypadButton::B)) => {
+                mem.borrow_mut().write(0xff00, !0b0010_0010);
+                println!("B");
+            }
+            None => mem.borrow_mut().write(0xff00, !0b0010_1000),
+        }
 
         if step {
             println!("{} {}", cpu, gpu.borrow().ly);
