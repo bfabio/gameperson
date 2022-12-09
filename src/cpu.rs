@@ -755,15 +755,15 @@ impl Cpu {
                         // H: Set if carry from bit 3.
                         // C: Set if carry from bit 7.
 
+                        let half_carry = (self.regs.a & 0xf) + (n & 0xf) > 0xf;
+                        self.regs.set_flag(HALF_CARRY_FLAG, half_carry);
+
                         let (result, carry) = self.regs.a.overflowing_add(n);
 
                         self.regs.a = result;
                         self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
                         self.regs.set_flag(SUBTRACT_FLAG, false);
                         self.regs.set_flag(CARRY_FLAG, carry);
-
-                        let half_carry = (self.regs.a & 0xf) + (n & 0xf) > 0xf;
-                        self.regs.set_flag(HALF_CARRY_FLAG, half_carry);
                     }
                     1 => {
                         // ADC A, n
