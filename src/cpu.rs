@@ -802,8 +802,11 @@ impl Cpu {
                         // flags:
                         // Z: Set if result is zero
                         // N: 1
-                        // H: Set if no borrow from bit 4
+                        // H: Set if borrow from bit 4
                         // C: Set if no borrow
+
+                        let (_, borrow) = (self.regs.a & 0xf).overflowing_sub(n & 0xf);
+                        self.regs.set_flag(HALF_CARRY_FLAG, borrow);
 
                         let (result, carry) = self.regs.a.overflowing_sub(n);
 
@@ -811,9 +814,6 @@ impl Cpu {
                         self.regs.set_flag(CARRY_FLAG, carry);
                         self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
                         self.regs.set_flag(SUBTRACT_FLAG, true);
-
-                        let (_, half_carry) = (self.regs.a & 0xf).overflowing_sub(n & 0xf);
-                        self.regs.set_flag(HALF_CARRY_FLAG, half_carry);
                     }
                     3 => unimplemented!("{:#04x} SBC A, opcode", self.pc),
                     4 => {
