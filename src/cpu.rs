@@ -869,15 +869,15 @@ impl Cpu {
                         // flags:
                         // Z: Set if result is zero. (A == n)
                         // N: 1
-                        // H: Set if no borrow from bit 4.
+                        // H: Set if borrow from bit 4.
                         // C: Set for no borrow. (Set if A < n)
 
                         self.regs.set_flag(ZERO_FLAG, self.regs.a == n);
                         self.regs.set_flag(SUBTRACT_FLAG, true);
                         self.regs.set_flag(CARRY_FLAG, n > self.regs.a);
 
-                        let (_, half_carry) = (self.regs.a & 0xf).overflowing_sub(n);
-                        self.regs.set_flag(HALF_CARRY_FLAG, half_carry);
+                        let (_, borrow) = (self.regs.a & 0xf).overflowing_sub(n & 0xf);
+                        self.regs.set_flag(HALF_CARRY_FLAG, borrow);
                     }
                     _ => panic!("Invalid opcode {:#04x} at {:#04x}", opcode, self.pc),
                 }
