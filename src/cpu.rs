@@ -926,10 +926,10 @@ impl Cpu {
                 // increment the stack pointer twice.
                 // (AF, BC, DE, HL)
 
-                let low = memory.load(self.sp as usize);
+                let high = memory.load(self.sp as usize);
                 self.sp += 1;
 
-                let high = memory.load(self.sp as usize);
+                let low = memory.load(self.sp as usize);
                 self.sp += 1;
 
                 let value = u16::from_be_bytes([high, low]);
@@ -989,34 +989,34 @@ impl Cpu {
 
                 let reg_name = match (opcode & 0xF0) >> 4 {
                     0xc => {
-                        memory.write(self.sp as usize, self.regs.b);
+                        memory.write(self.sp as usize, self.regs.c);
 
                         self.sp -= 1;
-                        memory.write(self.sp as usize, self.regs.c);
+                        memory.write(self.sp as usize, self.regs.b);
 
                         "BC"
                     }
                     0xd => {
-                        memory.write(self.sp as usize, self.regs.d);
+                        memory.write(self.sp as usize, self.regs.e);
 
                         self.sp -= 1;
-                        memory.write(self.sp as usize, self.regs.e);
+                        memory.write(self.sp as usize, self.regs.d);
 
                         "DE"
                     }
                     0xe => {
-                        memory.write(self.sp as usize, self.regs.h);
+                        memory.write(self.sp as usize, self.regs.l);
 
                         self.sp -= 1;
-                        memory.write(self.sp as usize, self.regs.l);
+                        memory.write(self.sp as usize, self.regs.h);
 
                         "HL"
                     }
                     0xf => {
-                        memory.write(self.sp as usize, self.regs.a);
+                        memory.write(self.sp as usize, self.regs.flags);
 
                         self.sp -= 1;
-                        memory.write(self.sp as usize, self.regs.flags);
+                        memory.write(self.sp as usize, self.regs.a);
 
                         "AF"
                     }
