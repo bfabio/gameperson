@@ -1160,12 +1160,12 @@ impl Cpu {
                                 // 9-bit rotation to the right. The carry is copied into bit 7,
                                 // and the bit leaving on the right is copied into the carry.
 
-                                let carry = (self.regs.flags & CARRY_FLAG) >> 3;
+                                let carry = (self.regs.flags & CARRY_FLAG) >> 4;
 
                                 let location = self.index(reg_index);
                                 let initial_value = location.load8(&self.regs, &memory);
 
-                                let value = (initial_value >> 1) | carry;
+                                let value = carry << 7 | (initial_value >> 1);
 
                                 location.store8(&mut self.regs, &mut memory, value);
 
