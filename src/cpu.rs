@@ -187,7 +187,9 @@ impl Registers {
 
     pub fn write_af(&mut self, value: u16) {
         self.a = ((value & 0xff00) >> 8) as u8;
-        self.flags = value as u8;
+
+        // Flags are only in the most significant nibble
+        self.flags = value as u8 & 0xf0;
     }
 
     pub fn set_flag(&mut self, flag: u8, value: bool) {
