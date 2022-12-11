@@ -365,6 +365,25 @@ impl Cpu {
                 self.current_op = format!("{:10} RLCA", " ");
                 cycles = 4;
             }
+            0x08 => {
+                // LD (a16), SP
+                //
+                // Put SP value into memory address a16.
+
+                self.pc += 1;
+                let low = memory.load(self.pc as usize);
+                self.pc += 1;
+                let high = memory.load(self.pc as usize);
+
+                let addr: u16 = u16::from_be_bytes([high, low]);
+
+                memory.write(addr as usize, (self.sp & 0xff) as u8);
+                memory.write(addr as usize + 1, ((self.sp & 0xff00) >> 8) as u8);
+
+                self.current_op = format!("{:9} LD ({:#06x}),SP", " ", addr);
+
+                cycles = 20;
+            }
             0x17 => {
                 // RLA
                 // (Note this is different from RL A)
@@ -406,6 +425,23 @@ impl Cpu {
                 self.regs.set_flag(HALF_CARRY_FLAG, false);
 
                 self.current_op = format!("{:10} RLA", " ");
+                cycles = 4;
+            }
+            0x1f => {
+                // RRA
+                // (Note this not the same instruction as RL A)
+
+                let carry = (self.regs.flags & CARRY_FLAG) >> 4;
+
+                self.regs
+                    .set_flag(CARRY_FLAG, self.regs.a & 0x1 != 0);
+
+                self.regs.a = self.regs.a >> 1 | carry << 7;
+
+                self.regs.set_flag(ZERO_FLAG, false);
+                self.regs.set_flag(SUBTRACT_FLAG, false);
+                self.regs.set_flag(HALF_CARRY_FLAG, false);
+
                 cycles = 4;
             }
             0x09 | 0x19 | 0x29 | 0x39 => {
@@ -1575,6 +1611,14 @@ impl Cpu {
                 // TODO skip next instruction
 
                 cycles = 4;
+            }
+            0xf9 => {
+                // LD SP,HL
+                //
+                // Store the value of HL in SP
+
+                self.sp = self.regs.hl();
+                cycles = 8;
             }
             _ => {
                 println!("Unknown opcode");
