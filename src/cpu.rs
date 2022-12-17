@@ -1473,6 +1473,24 @@ impl Cpu {
 
                 cycles = 12;
             }
+            0xe8 => {
+                // ADD SP, n
+                //
+                // Add n (signed) to Stack Pointer (SP).
+
+                self.pc += 1;
+                let n = memory.load(self.pc as usize);
+
+                self.regs.set_flag(HALF_CARRY_FLAG, (self.sp & 0xf) + ((n & 0xf) as u16) > 0xf);
+                self.regs.set_flag(CARRY_FLAG, (self.sp & 0xff) + (n as u16) > 0xff);
+
+                (self.sp, _) = self.sp.overflowing_add_signed((n as i8).into());
+
+                self.regs.set_flag(ZERO_FLAG, false);
+                self.regs.set_flag(SUBTRACT_FLAG, false);
+
+                cycles = 16;
+            }
             0xe9 => {
                 // JP (HL)
                 //
@@ -1613,6 +1631,25 @@ impl Cpu {
                 // TODO skip next instruction
 
                 cycles = 4;
+            }
+            0xf8 => {
+                // LD HL, SP+r8
+                //
+                // Put SP + n effective address into HL.
+
+                self.pc += 1;
+                let n = memory.load(self.pc as usize);
+
+                self.regs.set_flag(HALF_CARRY_FLAG, (self.sp & 0xf) + ((n & 0xf) as u16) > 0xf);
+                self.regs.set_flag(CARRY_FLAG, (self.sp & 0xff) + (n as u16) > 0xff);
+
+                let (result, _) = self.sp.overflowing_add_signed((n as i8).into());
+                self.regs.write_hl(result);
+
+                self.regs.set_flag(ZERO_FLAG, false);
+                self.regs.set_flag(SUBTRACT_FLAG, false);
+
+                cycles = 12
             }
             0xf9 => {
                 // LD SP,HL
