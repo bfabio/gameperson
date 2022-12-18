@@ -465,14 +465,14 @@ impl Cpu {
                     _ => unreachable!(),
                 };
 
+                let half_carry = (self.regs.hl() & 0xfff) + (operand & 0xfff) > 0xfff;
+                self.regs.set_flag(HALF_CARRY_FLAG, half_carry);
+
                 let (result, carry) = self.regs.hl().overflowing_add(operand);
                 self.regs.write_hl(result);
 
                 self.regs.set_flag(SUBTRACT_FLAG, false);
                 self.regs.set_flag(CARRY_FLAG, carry);
-
-                let half_carry = (self.regs.hl() & 0xfff) + (operand & 0xfff) > 0xfff;
-                self.regs.set_flag(HALF_CARRY_FLAG, half_carry);
 
                 cycles = 8;
             }
@@ -546,7 +546,7 @@ impl Cpu {
                         "HL"
                     }
                     0x3 => {
-                        self.sp += 1;
+                        self.sp = self.sp.wrapping_add(1);
 
                         "SP"
                     }
@@ -579,6 +579,45 @@ impl Cpu {
                 cycles = 12;
 
                 return cycles;
+            }
+            0x27 => {
+                // DAA (TODO: most likely wrong)
+                //
+                // Decimal adjust register A.
+                //
+                // Set the A register to its content's representation of
+                // Binary Coded Decimal (BCD).
+                //
+                // flags:
+                // Z - Set if register A is zero.
+                // N - Not affected.
+                // H - Reset.
+                // C - Set or reset according to operation. TODO and doc (?)
+
+                let mut reg = 0;
+                let mut carry = false;
+
+                if self.regs.flags & HALF_CARRY_FLAG != 0
+                    || (self.regs.flags & SUBTRACT_FLAG == 0 && self.regs.a & 0x0f > 0x09) {
+                    reg = 0x06;
+                }
+                if self.regs.flags & CARRY_FLAG != 0
+                    || (self.regs.flags & SUBTRACT_FLAG == 0 && self.regs.a > 0x99) {
+                    reg += 0x60;
+                    carry = true;
+                }
+
+                if self.regs.flags & SUBTRACT_FLAG == 0 {
+                    self.regs.a = self.regs.a.wrapping_add(reg);
+                } else {
+                    self.regs.a = self.regs.a.wrapping_sub(reg);
+                }
+
+                self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
+                self.regs.set_flag(HALF_CARRY_FLAG, false);
+                self.regs.set_flag(CARRY_FLAG, carry);
+
+                cycles = 4;
             }
             0x28 => {
                 // JR Z,n
@@ -640,22 +679,22 @@ impl Cpu {
 
                 let reg_name = match (opcode & 0xF0) >> 4 {
                     0x0 => {
-                        self.regs.write_bc(self.regs.bc() - 1);
+                        self.regs.write_bc(self.regs.bc().wrapping_sub(1));
 
                         "BC"
                     }
                     0x1 => {
-                        self.regs.write_de(self.regs.de() - 1);
+                        self.regs.write_de(self.regs.de().wrapping_sub(1));
 
                         "DE"
                     }
                     0x2 => {
-                        self.regs.write_hl(self.regs.hl() - 1);
+                        self.regs.write_hl(self.regs.hl().wrapping_sub(1));
 
                         "HL"
                     }
                     0x3 => {
-                        self.sp -= 1;
+                        self.sp = self.sp.wrapping_sub(1);
 
                         "SP"
                     }
@@ -820,6 +859,9 @@ impl Cpu {
                             1
                         };
 
+                        let half_carry = (self.regs.a & 0xf) + (n & 0xf) + carry > 0xf;
+                        self.regs.set_flag(HALF_CARRY_FLAG, half_carry);
+
                         let result = self.regs.a as u16 + carry as u16 + n as u16;
 
                         self.regs.a = result as u8;
@@ -828,9 +870,6 @@ impl Cpu {
                         self.regs.set_flag(SUBTRACT_FLAG, false);
 
                         self.regs.set_flag(CARRY_FLAG, result > 0xff);
-
-                        let half_carry = (self.regs.a & 0xf) + (n & 0xf) + carry > 0xf;
-                        self.regs.set_flag(HALF_CARRY_FLAG, half_carry);
                     }
                     2 => {
                         // SUB n
@@ -853,7 +892,30 @@ impl Cpu {
                         self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
                         self.regs.set_flag(SUBTRACT_FLAG, true);
                     }
-                    3 => unimplemented!("{:#04x} SBC A, opcode", self.pc),
+                    3 => {
+                        // SBC A,n
+                        //
+                        // Subtract n + Carry flag from A.
+                        //
+                        // flags:
+                        // Z - Set if result is zero.
+                        // N - Set.
+                        // H - Set if borrow from bit 4.
+                        // C - Set if borrow.
+
+                        let c = if self.regs.flags & CARRY_FLAG == 0 { 0 } else { 1 };
+                        let (n_c, _) = n.overflowing_add(c);
+                        let (result, carry) = self.regs.a.overflowing_sub(n_c);
+
+                        // XXX
+                        self.regs.set_flag(HALF_CARRY_FLAG, true);
+
+                        self.regs.a = result;
+
+                        self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
+                        self.regs.set_flag(SUBTRACT_FLAG, true);
+                        self.regs.set_flag(CARRY_FLAG, carry);
+                    }
                     4 => {
                         // AND n
                         //
@@ -926,9 +988,9 @@ impl Cpu {
                 // Return if Z flag is 0.
 
                 if (self.regs.flags & ZERO_FLAG) == 0 {
-                    let high = memory.load(self.sp as usize);
-                    self.sp += 1;
                     let low = memory.load(self.sp as usize);
+                    self.sp += 1;
+                    let high = memory.load(self.sp as usize);
                     self.sp += 1;
 
                     self.pc = u16::from_be_bytes([high, low]);
@@ -945,9 +1007,45 @@ impl Cpu {
                 // Return if Z flag is 1.
 
                 if (self.regs.flags & ZERO_FLAG) != 0 {
+                    let low = memory.load(self.sp as usize);
+                    self.sp += 1;
                     let high = memory.load(self.sp as usize);
                     self.sp += 1;
+
+                    self.pc = u16::from_be_bytes([high, low]);
+
+                    cycles = 20;
+                    return cycles;
+                }
+                cycles = 8;
+            }
+            0xd0 => {
+                // RET NC
+                //
+                // Return if C flag is 0.
+
+                if (self.regs.flags & CARRY_FLAG) == 0 {
                     let low = memory.load(self.sp as usize);
+                    self.sp += 1;
+                    let high = memory.load(self.sp as usize);
+                    self.sp += 1;
+
+                    self.pc = u16::from_be_bytes([high, low]);
+
+                    cycles = 20;
+                    return cycles;
+                }
+                cycles = 8;
+            }
+            0xd8 => {
+                // RET C
+                //
+                // Return if C flag is 1.
+
+                if (self.regs.flags & CARRY_FLAG) != 0 {
+                    let low = memory.load(self.sp as usize);
+                    self.sp += 1;
+                    let high = memory.load(self.sp as usize);
                     self.sp += 1;
 
                     self.pc = u16::from_be_bytes([high, low]);
@@ -964,10 +1062,10 @@ impl Cpu {
                 // increment the stack pointer twice.
                 // (AF, BC, DE, HL)
 
-                let high = memory.load(self.sp as usize);
+                let low = memory.load(self.sp as usize);
                 self.sp += 1;
 
-                let low = memory.load(self.sp as usize);
+                let high = memory.load(self.sp as usize);
                 self.sp += 1;
 
                 let value = u16::from_be_bytes([high, low]);
@@ -1004,9 +1102,9 @@ impl Cpu {
                 //
                 // Pop two bytes from stack and jump to that address.
 
-                let high = memory.load(self.sp as usize);
-                self.sp += 1;
                 let low = memory.load(self.sp as usize);
+                self.sp += 1;
+                let high = memory.load(self.sp as usize);
                 self.sp += 1;
 
                 self.pc = u16::from_be_bytes([high, low]);
@@ -1027,34 +1125,34 @@ impl Cpu {
 
                 let reg_name = match (opcode & 0xF0) >> 4 {
                     0xc => {
-                        memory.write(self.sp as usize, self.regs.c);
+                        memory.write(self.sp as usize, self.regs.b);
 
                         self.sp -= 1;
-                        memory.write(self.sp as usize, self.regs.b);
+                        memory.write(self.sp as usize, self.regs.c);
 
                         "BC"
                     }
                     0xd => {
-                        memory.write(self.sp as usize, self.regs.e);
+                        memory.write(self.sp as usize, self.regs.d);
 
                         self.sp -= 1;
-                        memory.write(self.sp as usize, self.regs.d);
+                        memory.write(self.sp as usize, self.regs.e);
 
                         "DE"
                     }
                     0xe => {
-                        memory.write(self.sp as usize, self.regs.l);
+                        memory.write(self.sp as usize, self.regs.h);
 
                         self.sp -= 1;
-                        memory.write(self.sp as usize, self.regs.h);
+                        memory.write(self.sp as usize, self.regs.l);
 
                         "HL"
                     }
                     0xf => {
-                        memory.write(self.sp as usize, self.regs.flags);
+                        memory.write(self.sp as usize, self.regs.a);
 
                         self.sp -= 1;
-                        memory.write(self.sp as usize, self.regs.a);
+                        memory.write(self.sp as usize, self.regs.flags);
 
                         "AF"
                     }
@@ -1102,10 +1200,10 @@ impl Cpu {
                     let next_inst_addr = self.pc + 1;
 
                     self.sp -= 1;
-                    memory.write(self.sp as usize, next_inst_addr.to_be_bytes()[1]);
+                    memory.write(self.sp as usize, next_inst_addr.to_be_bytes()[0]);
 
                     self.sp -= 1;
-                    memory.write(self.sp as usize, next_inst_addr.to_be_bytes()[0]);
+                    memory.write(self.sp as usize, next_inst_addr.to_be_bytes()[1]);
 
                     let addr = u16::from_be_bytes([high, low]);
 
@@ -1571,9 +1669,9 @@ impl Cpu {
                 //
                 // Pop two bytes from stack and jump to that address then enable interrupts.
 
-                let high = memory.load(self.sp as usize);
-                self.sp += 1;
                 let low = memory.load(self.sp as usize);
+                self.sp += 1;
+                let high = memory.load(self.sp as usize);
                 self.sp += 1;
 
                 self.pc = u16::from_be_bytes([high, low]);
