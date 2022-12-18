@@ -820,6 +820,9 @@ impl Cpu {
                             1
                         };
 
+                        let half_carry = (self.regs.a & 0xf) + (n & 0xf) + carry > 0xf;
+                        self.regs.set_flag(HALF_CARRY_FLAG, half_carry);
+
                         let result = self.regs.a as u16 + carry as u16 + n as u16;
 
                         self.regs.a = result as u8;
@@ -828,9 +831,6 @@ impl Cpu {
                         self.regs.set_flag(SUBTRACT_FLAG, false);
 
                         self.regs.set_flag(CARRY_FLAG, result > 0xff);
-
-                        let half_carry = (self.regs.a & 0xf) + (n & 0xf) + carry > 0xf;
-                        self.regs.set_flag(HALF_CARRY_FLAG, half_carry);
                     }
                     2 => {
                         // SUB n
