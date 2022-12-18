@@ -853,7 +853,30 @@ impl Cpu {
                         self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
                         self.regs.set_flag(SUBTRACT_FLAG, true);
                     }
-                    3 => unimplemented!("{:#04x} SBC A, opcode", self.pc),
+                    3 => {
+                        // SBC A,n
+                        //
+                        // Subtract n + Carry flag from A.
+                        //
+                        // flags:
+                        // Z - Set if result is zero.
+                        // N - Set.
+                        // H - Set if borrow from bit 4.
+                        // C - Set if borrow.
+
+                        let c = if self.regs.flags & CARRY_FLAG == 0 { 0 } else { 1 };
+                        let (n_c, _) = n.overflowing_add(c);
+                        let (result, carry) = self.regs.a.overflowing_sub(n_c);
+
+                        // XXX
+                        self.regs.set_flag(HALF_CARRY_FLAG, true);
+
+                        self.regs.a = result;
+
+                        self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
+                        self.regs.set_flag(SUBTRACT_FLAG, true);
+                        self.regs.set_flag(CARRY_FLAG, carry);
+                    }
                     4 => {
                         // AND n
                         //
