@@ -546,7 +546,7 @@ impl Cpu {
                         "HL"
                     }
                     0x3 => {
-                        self.sp += 1;
+                        self.sp = self.sp.wrapping_add(1);
 
                         "SP"
                     }
