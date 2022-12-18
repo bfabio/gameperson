@@ -640,22 +640,22 @@ impl Cpu {
 
                 let reg_name = match (opcode & 0xF0) >> 4 {
                     0x0 => {
-                        self.regs.write_bc(self.regs.bc() - 1);
+                        self.regs.write_bc(self.regs.bc().wrapping_sub(1));
 
                         "BC"
                     }
                     0x1 => {
-                        self.regs.write_de(self.regs.de() - 1);
+                        self.regs.write_de(self.regs.de().wrapping_sub(1));
 
                         "DE"
                     }
                     0x2 => {
-                        self.regs.write_hl(self.regs.hl() - 1);
+                        self.regs.write_hl(self.regs.hl().wrapping_sub(1));
 
                         "HL"
                     }
                     0x3 => {
-                        self.sp -= 1;
+                        self.sp = self.sp.wrapping_sub(1);
 
                         "SP"
                     }
