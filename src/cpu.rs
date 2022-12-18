@@ -949,9 +949,9 @@ impl Cpu {
                 // Return if Z flag is 0.
 
                 if (self.regs.flags & ZERO_FLAG) == 0 {
-                    let high = memory.load(self.sp as usize);
-                    self.sp += 1;
                     let low = memory.load(self.sp as usize);
+                    self.sp += 1;
+                    let high = memory.load(self.sp as usize);
                     self.sp += 1;
 
                     self.pc = u16::from_be_bytes([high, low]);
@@ -987,10 +987,10 @@ impl Cpu {
                 // increment the stack pointer twice.
                 // (AF, BC, DE, HL)
 
-                let high = memory.load(self.sp as usize);
+                let low = memory.load(self.sp as usize);
                 self.sp += 1;
 
-                let low = memory.load(self.sp as usize);
+                let high = memory.load(self.sp as usize);
                 self.sp += 1;
 
                 let value = u16::from_be_bytes([high, low]);
@@ -1027,9 +1027,9 @@ impl Cpu {
                 //
                 // Pop two bytes from stack and jump to that address.
 
-                let high = memory.load(self.sp as usize);
-                self.sp += 1;
                 let low = memory.load(self.sp as usize);
+                self.sp += 1;
+                let high = memory.load(self.sp as usize);
                 self.sp += 1;
 
                 self.pc = u16::from_be_bytes([high, low]);
@@ -1050,34 +1050,34 @@ impl Cpu {
 
                 let reg_name = match (opcode & 0xF0) >> 4 {
                     0xc => {
-                        memory.write(self.sp as usize, self.regs.c);
+                        memory.write(self.sp as usize, self.regs.b);
 
                         self.sp -= 1;
-                        memory.write(self.sp as usize, self.regs.b);
+                        memory.write(self.sp as usize, self.regs.c);
 
                         "BC"
                     }
                     0xd => {
-                        memory.write(self.sp as usize, self.regs.e);
+                        memory.write(self.sp as usize, self.regs.d);
 
                         self.sp -= 1;
-                        memory.write(self.sp as usize, self.regs.d);
+                        memory.write(self.sp as usize, self.regs.e);
 
                         "DE"
                     }
                     0xe => {
-                        memory.write(self.sp as usize, self.regs.l);
+                        memory.write(self.sp as usize, self.regs.h);
 
                         self.sp -= 1;
-                        memory.write(self.sp as usize, self.regs.h);
+                        memory.write(self.sp as usize, self.regs.l);
 
                         "HL"
                     }
                     0xf => {
-                        memory.write(self.sp as usize, self.regs.flags);
+                        memory.write(self.sp as usize, self.regs.a);
 
                         self.sp -= 1;
-                        memory.write(self.sp as usize, self.regs.a);
+                        memory.write(self.sp as usize, self.regs.flags);
 
                         "AF"
                     }
@@ -1125,10 +1125,10 @@ impl Cpu {
                     let next_inst_addr = self.pc + 1;
 
                     self.sp -= 1;
-                    memory.write(self.sp as usize, next_inst_addr.to_be_bytes()[1]);
+                    memory.write(self.sp as usize, next_inst_addr.to_be_bytes()[0]);
 
                     self.sp -= 1;
-                    memory.write(self.sp as usize, next_inst_addr.to_be_bytes()[0]);
+                    memory.write(self.sp as usize, next_inst_addr.to_be_bytes()[1]);
 
                     let addr = u16::from_be_bytes([high, low]);
 
@@ -1594,9 +1594,9 @@ impl Cpu {
                 //
                 // Pop two bytes from stack and jump to that address then enable interrupts.
 
-                let high = memory.load(self.sp as usize);
-                self.sp += 1;
                 let low = memory.load(self.sp as usize);
+                self.sp += 1;
+                let high = memory.load(self.sp as usize);
                 self.sp += 1;
 
                 self.pc = u16::from_be_bytes([high, low]);
