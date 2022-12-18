@@ -580,6 +580,45 @@ impl Cpu {
 
                 return cycles;
             }
+            0x27 => {
+                // DAA (TODO: most likely wrong)
+                //
+                // Decimal adjust register A.
+                //
+                // Set the A register to its content's representation of
+                // Binary Coded Decimal (BCD).
+                //
+                // flags:
+                // Z - Set if register A is zero.
+                // N - Not affected.
+                // H - Reset.
+                // C - Set or reset according to operation. TODO and doc (?)
+
+                let mut reg = 0;
+                let mut carry = false;
+
+                if self.regs.flags & HALF_CARRY_FLAG != 0
+                    || (self.regs.flags & SUBTRACT_FLAG == 0 && self.regs.a & 0x0f > 0x09) {
+                    reg = 0x06;
+                }
+                if self.regs.flags & CARRY_FLAG != 0
+                    || (self.regs.flags & SUBTRACT_FLAG == 0 && self.regs.a > 0x99) {
+                    reg += 0x60;
+                    carry = true;
+                }
+
+                if self.regs.flags & SUBTRACT_FLAG == 0 {
+                    self.regs.a = self.regs.a.wrapping_add(reg);
+                } else {
+                    self.regs.a = self.regs.a.wrapping_sub(reg);
+                }
+
+                self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
+                self.regs.set_flag(HALF_CARRY_FLAG, false);
+                self.regs.set_flag(CARRY_FLAG, carry);
+
+                cycles = 4;
+            }
             0x28 => {
                 // JR Z,n
                 //
