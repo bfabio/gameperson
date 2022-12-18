@@ -1007,9 +1007,45 @@ impl Cpu {
                 // Return if Z flag is 1.
 
                 if (self.regs.flags & ZERO_FLAG) != 0 {
+                    let low = memory.load(self.sp as usize);
+                    self.sp += 1;
                     let high = memory.load(self.sp as usize);
                     self.sp += 1;
+
+                    self.pc = u16::from_be_bytes([high, low]);
+
+                    cycles = 20;
+                    return cycles;
+                }
+                cycles = 8;
+            }
+            0xd0 => {
+                // RET NC
+                //
+                // Return if C flag is 0.
+
+                if (self.regs.flags & CARRY_FLAG) == 0 {
                     let low = memory.load(self.sp as usize);
+                    self.sp += 1;
+                    let high = memory.load(self.sp as usize);
+                    self.sp += 1;
+
+                    self.pc = u16::from_be_bytes([high, low]);
+
+                    cycles = 20;
+                    return cycles;
+                }
+                cycles = 8;
+            }
+            0xd8 => {
+                // RET C
+                //
+                // Return if C flag is 1.
+
+                if (self.regs.flags & CARRY_FLAG) != 0 {
+                    let low = memory.load(self.sp as usize);
+                    self.sp += 1;
+                    let high = memory.load(self.sp as usize);
                     self.sp += 1;
 
                     self.pc = u16::from_be_bytes([high, low]);
