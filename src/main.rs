@@ -28,11 +28,11 @@ use input::{Input, JoypadButton};
 use sdl2::sys::SDL_bool;
 
 fn debug(cpu: &mut cpu::Cpu, mem: &memory::Memory) -> (u16, bool) {
-    println!("b HEX - run until - HEX = 0 to reset");
-    println!("p HEX - dump memory address");
-    println!("j HEX - dump memory address");
-    println!("n - next instruction");
-    println!("c - continue");
+    // println!("b HEX - run until - HEX = 0 to reset");
+    // println!("p HEX - dump memory address");
+    // println!("j HEX - dump memory address");
+    // println!("n - next instruction");
+    // println!("c - continue");
 
     loop {
         println!();
@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let rom = fs::read(&rom_path)?;
 
     if let Some(cartridge) = Cartridge::new(&rom) {
-        println!("Cartridge info\n{}", &cartridge);
+        // println!("Cartridge info\n{}", &cartridge);
     } else {
         eprintln!("Can't parse cartridge header");
     }
@@ -187,6 +187,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
         }
 
         for _ in 0..1 {
+            println!("{}", cpu);
             cycles += u16::from(cpu.decode());
         }
 
@@ -211,7 +212,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
         // }
 
         if step {
-            println!("{} {}", cpu, gpu.borrow().ly);
+            // println!("{} {}", cpu, gpu.borrow().ly);
             cpu.mem_next();
 
             let ret = debug(&mut cpu, &mem.borrow());

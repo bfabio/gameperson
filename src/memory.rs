@@ -188,7 +188,9 @@ impl Region for IORegisters {
             // The values between 144 and 153 indicate the V-Blank period.
             //
             // Writing will reset the counter.
-            0x44 => self.gpu.borrow().ly,
+            // 0x44 => self.gpu.borrow().ly,
+            // gameboy doctor
+            0x44 => 0x90,
 
             // TODO doc
             0x45 => self.gpu.borrow().lyc,
@@ -200,14 +202,14 @@ impl Region for IORegisters {
     fn write(&mut self, address: u16, value: u8) -> Option<AddressSpaceAction> {
         match address {
             0x01 => {
-                println!("Serial: {}", value);
+                // println!("Serial: {}", value);
                 None
             }
             // 0xff02: SC - Serial Transfer Control (R/W)
             0x02 => {
                 if value == 0x81 {
                     // Print 0xff01 (SB - Serial transfer data (R/W))
-                    print!("{}", self.mem[0x01]);
+                    // print!("{}", self.mem[0x01]);
                 }
                 None
             }
@@ -369,12 +371,12 @@ impl Memory {
             start: address,
             end: address + region.len() as u16,
         };
-        println!(
-            "Mapping {:#06x}:{:#06x}, size: {}",
-            range.start,
-            range.end,
-            region.len()
-        );
+        // println!(
+        //     "Mapping {:#06x}:{:#06x}, size: {}",
+        //     range.start,
+        //     range.end,
+        //     region.len()
+        // );
 
         let mapping = Mapping {
             address_range: range,
@@ -390,17 +392,17 @@ impl Memory {
             .iter()
             .position(|mapping| mapping.address_range.contains(&address))
         {
-            println!("Unmapping Boot ROM at {:#04x}", address);
+            // println!("Unmapping Boot ROM at {:#04x}", address);
 
             self.mappings.remove(pos);
         }
 
-        for m in &self.mappings {
-            println!(
-                "- {:#04x}..{:#04x}",
-                m.address_range.start, m.address_range.end
-            );
-        }
+        // for m in &self.mappings {
+        //     println!(
+        //         "- {:#04x}..{:#04x}",
+        //         m.address_range.start, m.address_range.end
+        //     );
+        // }
     }
 
     // XXX doc
@@ -436,18 +438,18 @@ impl Memory {
                         0x6e, 0x0e, 0xec, 0xcc, 0xdd, 0xdc, 0x99, 0x9f, 0xbb, 0xb9, 0x33, 0x3e,
                     ];
 
-                    println!(
-                        "ADDR: {:#06x} value: {:#04x}",
-                        address,
-                        nintendo_logo[address - 0x0104]
-                    );
-                    println!("Mappings:");
-                    for mapping in &self.mappings {
-                        println!(
-                            "  {:#04x}..{:#04x}",
-                            mapping.address_range.start, mapping.address_range.end
-                        );
-                    }
+                    // println!(
+                    //     "ADDR: {:#06x} value: {:#04x}",
+                    //     address,
+                    //     nintendo_logo[address - 0x0104]
+                    // );
+                    // println!("Mappings:");
+                    // for mapping in &self.mappings {
+                    //     println!(
+                    //         "  {:#04x}..{:#04x}",
+                    //         mapping.address_range.start, mapping.address_range.end
+                    //     );
+                    // }
                     return nintendo_logo[address - 0x0104];
                 }
                 // Happens with the boot ROM which is just 256 bytes.
@@ -463,7 +465,12 @@ impl Memory {
             // (0xff00..=0xff7f) => region.read(address as u16 - 0xff00),
 
             // Internal RAM
-            (0xc000..=0xdfff) => self.ram[address - 0xc000],
+            (0xc000..=0xdfff) => {
+                // if address >= 0xdffb && address <= 0xdffd {
+                //     println!("->> 0x{:x}: {:x} >{:x}< {:x}", address, self.ram[address - 1 - 0xc000], self.ram[address - 0xc000], self.ram[address + 1 - 0xc000]);
+                // }
+                self.ram[address - 0xc000]
+            },
 
             // Mirror of 0xc000~0xddff (Echo RAM) - Typically not used
             // FIXME Used by Tetris?
@@ -512,7 +519,13 @@ impl Memory {
             //(0x0..=0x7fff) => panic!(),
 
             // Internal RAM
-            (0xc000..=0xdfff) => self.ram[address - 0xc000] = value,
+            (0xc000..=0xdfff) => {
+                // if address == 0xdff9 || address == 0xdffa {
+                //     println!("write to: 0x{:x}: 0x{:x}", address, value);
+                // }
+
+                self.ram[address - 0xc000] = value;
+            },
 
             // Sprite Attribute Table (aka OAM)
             0xfe00..=0xfe9f => self.oam[address - 0xfe00] = value,

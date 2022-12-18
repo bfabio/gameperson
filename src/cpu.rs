@@ -140,7 +140,7 @@ pub struct Cpu {
     current_op: String,
 }
 
-#[derive(Default)]
+// #[derive(Default)]
 struct Registers {
     flags: u8,
 
@@ -155,6 +155,12 @@ struct Registers {
 
     h: u8,
     l: u8,
+}
+
+impl Default for Registers {
+    fn default() -> Self {
+        Registers {flags: 0xb0, a: 0x01, b: 0x00, c: 0x13, d: 0x00, e: 0xd8, h: 0x01, l: 0x4d}
+    }
 }
 
 impl Registers {
@@ -221,8 +227,10 @@ impl Cpu {
     pub fn new(memory: Rc<RefCell<Memory>>) -> Cpu {
         Self {
             regs: Registers::default(),
-            sp: 0,
-            pc: 0,
+            // sp: 0,
+            // pc: 0,
+            sp: 0xfffe,
+            pc: 0x0100,
             memory,
             interrupts_enabled: false,
             current_op: String::new(),
@@ -1656,7 +1664,7 @@ impl Cpu {
                 self.sp -= 1;
                 memory.write(self.sp as usize, (self.pc >> 8) as u8);
                 self.sp -= 1;
-                println!("sp: {} {:#06x} {:#06x}", self.sp, opcode, self.pc);
+                // println!("sp: {} {:#06x} {:#06x}", self.sp, opcode, self.pc);
                 memory.write(self.sp as usize, (self.pc & 0xff) as u8);
 
                 self.pc = u16::from(opcode - 0xc7);
@@ -1770,12 +1778,12 @@ impl Cpu {
     }
 
     pub fn mem_next(&self) {
-        println!(
-            "-> pc: {:#08x}\n   {:#04x} {:#04x}",
-            self.pc,
-            self.memory.borrow().load(self.pc as usize),
-            self.memory.borrow().load((self.pc + 1) as usize)
-        );
+        // println!(
+        //     "-> pc: {:#08x}\n   {:#04x} {:#04x}",
+        //     self.pc,
+        //     self.memory.borrow().load(self.pc as usize),
+        //     self.memory.borrow().load((self.pc + 1) as usize)
+        // );
     }
 
     pub fn vblank_int(&mut self) {
@@ -1805,7 +1813,7 @@ impl Cpu {
             .write(self.sp as usize, (self.pc & 0xff) as u8);
 
 
-        println!("STATUS pc {:#04x}", self.sp);
+        // println!("STATUS pc {:#04x}", self.sp);
 
         // XXX: is this right?
         self.interrupts_enabled = false;
@@ -1817,10 +1825,21 @@ impl Cpu {
 
 impl fmt::Display for Cpu {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let memory = self.memory.borrow();
         write!(
             f,
-            "pc: {:#06x}, sp: {:#06x}, {}",
-            self.pc, self.sp, self.regs
+            "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}",
+            self.regs.a,
+            self.regs.flags,
+            self.regs.b,
+            self.regs.c,
+            self.regs.d,
+            self.regs.e,
+            self.regs.h,
+            self.regs.l,
+            self.sp,
+            self.pc,
+            memory.load(self.pc as usize), memory.load((self.pc+1) as usize), memory.load((self.pc+2) as usize), memory.load((self.pc+3) as usize)
         )
     }
 }
