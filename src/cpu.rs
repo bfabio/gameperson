@@ -465,14 +465,14 @@ impl Cpu {
                     _ => unreachable!(),
                 };
 
+                let half_carry = (self.regs.hl() & 0xfff) + (operand & 0xfff) > 0xfff;
+                self.regs.set_flag(HALF_CARRY_FLAG, half_carry);
+
                 let (result, carry) = self.regs.hl().overflowing_add(operand);
                 self.regs.write_hl(result);
 
                 self.regs.set_flag(SUBTRACT_FLAG, false);
                 self.regs.set_flag(CARRY_FLAG, carry);
-
-                let half_carry = (self.regs.hl() & 0xfff) + (operand & 0xfff) > 0xfff;
-                self.regs.set_flag(HALF_CARRY_FLAG, half_carry);
 
                 cycles = 8;
             }
