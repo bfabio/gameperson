@@ -647,6 +647,17 @@ impl Cpu {
 
                 cycles = 8;
             }
+            0x37 => {
+                // SCF
+                //
+                // Set the carry flag and clears the N and H flags
+
+                self.regs.set_flag(CARRY_FLAG, true);
+                self.regs.set_flag(SUBTRACT_FLAG, false);
+                self.regs.set_flag(HALF_CARRY_FLAG, false);
+
+                cycles = 4
+            }
             0x38 => {
                 // JR C,n
                 //
@@ -671,6 +682,17 @@ impl Cpu {
                     cycles = 12;
                 }
                 return cycles;
+            }
+            0x3f => {
+                // CCF
+                //
+                // Flips the carry flag, and clears the N and H flags
+
+                self.regs.set_flag(CARRY_FLAG, !(self.regs.flags & CARRY_FLAG != 0));
+                self.regs.set_flag(SUBTRACT_FLAG, false);
+                self.regs.set_flag(HALF_CARRY_FLAG, false);
+
+                cycles = 4
             }
             0x0b | 0x1b | 0x2b | 0x3b => {
                 // 16bit DEC
