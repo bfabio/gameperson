@@ -1247,16 +1247,15 @@ impl Cpu {
                                 // is copied into the carry, and to bit 0.
 
                                 let location = self.index(reg_index);
-                                let value = location.load8(&self.regs, &memory).rotate_left(1);
 
-                                location.store8(&mut self.regs, &mut memory, value);
+                                let value = location.load8(&self.regs, &memory);
 
-                                self.regs.set_flag(CARRY_FLAG, value & 0x1 != 0);
+                                self.regs.set_flag(CARRY_FLAG, value & 0b1000_0000 != 0);
 
-                                if value == 0 {
-                                    self.regs.flags |= ZERO_FLAG;
-                                }
+                                let result = value.rotate_left(1);
+                                location.store8(&mut self.regs, &mut memory, result);
 
+                                self.regs.set_flag(ZERO_FLAG, result == 0);
                                 self.regs.flags &= !SUBTRACT_FLAG;
                                 self.regs.flags &= !HALF_CARRY_FLAG;
 
@@ -1264,8 +1263,24 @@ impl Cpu {
                                     format!("{:#04x}      RLC {}", cb_opcode, location);
                             }
                             1 => {
-                                self.current_op = "RRC".to_string();
-                                unimplemented!();
+                                // 8-bit rotation to the right. The bit leaving on the right
+                                // is copied into the carry, and to bit 7.
+
+                                let location = self.index(reg_index);
+
+                                let value = location.load8(&self.regs, &memory);
+
+                                self.regs.set_flag(CARRY_FLAG, value & 0x1 != 0);
+
+                                let result = value.rotate_right(1);
+                                location.store8(&mut self.regs, &mut memory, result);
+
+                                self.regs.set_flag(ZERO_FLAG, result == 0);
+                                self.regs.flags &= !SUBTRACT_FLAG;
+                                self.regs.flags &= !HALF_CARRY_FLAG;
+
+                                self.current_op =
+                                    format!("{:#04x}      RRC {}", cb_opcode, location);
                             }
                             2 => {
                                 // RL r8
