@@ -292,10 +292,6 @@ impl Region for Vram {
     // Usually at 0x8000 to 0x9fff
 
     fn read(&self, address: u16) -> u8 {
-        if address == 0x1910 {
-            return 0x19_u8;
-        }
-
         self.mem[address as usize]
     }
 
