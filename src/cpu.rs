@@ -1847,12 +1847,13 @@ impl Cpu {
         self.sp -= 1;
         self.memory
             .borrow_mut()
-            .write(self.sp as usize, (self.pc & 0xff) as u8);
+            .write(self.sp as usize, (self.pc >> 8) as u8);
 
         self.sp -= 1;
         self.memory
             .borrow_mut()
-            .write(self.sp as usize, (self.pc >> 8) as u8);
+            .write(self.sp as usize, (self.pc & 0xff) as u8);
+
         // XXX: is this right?
         self.interrupts_enabled = false;
 
