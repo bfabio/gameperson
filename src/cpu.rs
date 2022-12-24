@@ -1393,8 +1393,29 @@ impl Cpu {
                                 self.current_op = "SLA".to_string();
                             }
                             5 => {
+                                // SRA n
+                                //
+                                // Aritmetic shift n right into Carry.
+                                // MSB (sign bit) is untouched.
+                                //
+                                //   Z - Set if result is zero.
+                                //   N - Reset.
+                                //   H - Reset.
+                                //   C - Contains old bit 0 data.
+
+                                let location = self.index(reg_index);
+                                let initial_value = location.load8(&self.regs, &memory);
+
+                                let value = initial_value >> 1 | initial_value & 0b1000_0000;
+                                location.store8(&mut self.regs, &mut memory, value);
+
+                                self.regs.set_flag(CARRY_FLAG, initial_value & 0x1 != 0);
+                                self.regs.set_flag(ZERO_FLAG, value == 0);
+
+                                self.regs.set_flag(HALF_CARRY_FLAG, false);
+                                self.regs.set_flag(SUBTRACT_FLAG, false);
+
                                 self.current_op = "SRA".to_string();
-                                unimplemented!();
                             }
                             6 => {
                                 // TODO doc
