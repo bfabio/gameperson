@@ -1369,10 +1369,10 @@ impl Cpu {
                                     format!("{:#04x}      RR {}", cb_opcode, location);
                             }
                             4 => {
-                                // TODO better doc
                                 // SLA n
                                 //
-                                // Shift n left into Carry. LSB of n set to 0.
+                                // Aritmetic shift n left into Carry. MSB (sign bit)
+                                // is untouched.
                                 //   Z - Set if result is zero.
                                 //   N - Reset.
                                 //   H - Reset.
