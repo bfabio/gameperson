@@ -606,13 +606,7 @@ impl Cpu {
                 // Relative jump is calculated starting from the next instruction
                 self.pc += 1;
 
-                // XXX
-                self.pc = if immediate >= 0 {
-                    self.pc.saturating_add(immediate as u16)
-                } else {
-                    let immediate = immediate.abs();
-                    self.pc.saturating_sub(immediate as u16)
-                };
+                self.pc = self.pc.wrapping_add_signed(immediate as i16);
                 cycles = 12;
 
                 return cycles;
@@ -666,23 +660,16 @@ impl Cpu {
 
                 self.current_op = format!("{0:#04x}      JR Z,{0:#04x} {0}", immediate);
 
+                cycles = 8;
                 if (self.regs.flags & ZERO_FLAG) != 0 {
                     // Relative jump is calculated starting from the next instruction
                     self.pc += 1;
 
                     cycles = 12;
-                    // XXX
-                    self.pc = if immediate >= 0 {
-                        self.pc.saturating_add(immediate as u16)
-                    } else {
-                        let immediate = immediate.abs();
-                        self.pc.saturating_sub(immediate as u16)
-                    };
+                    self.pc = self.pc.wrapping_add_signed(immediate as i16);
 
                     return cycles;
                 }
-
-                cycles = 8;
             }
             0x37 => {
                 // SCF
@@ -705,20 +692,15 @@ impl Cpu {
 
                 self.current_op = format!("{0:#04x}      JR C,{0:#04x} {0}", immediate);
 
-                self.pc += 1;
-
                 cycles = 8;
                 if (self.regs.flags & CARRY_FLAG) != 0 {
-                    // XXX
-                    self.pc = if immediate >= 0 {
-                        self.pc.saturating_add(immediate as u16)
-                    } else {
-                        let immediate = immediate.abs();
-                        self.pc.saturating_sub(immediate as u16)
-                    };
+                    self.pc += 1;
                     cycles = 12;
+
+                    self.pc = self.pc.wrapping_add_signed(immediate as i16);
+
+                    return cycles;
                 }
-                return cycles;
             }
             0x3f => {
                 // CCF
@@ -1528,22 +1510,17 @@ impl Cpu {
 
                 self.current_op = format!("{0:#04x}      JR NZ,{0:#04x} {0}", immediate);
 
+                cycles = 8;
+
                 if (self.regs.flags & ZERO_FLAG) == 0 {
                     // Relative jump is calculated starting from the next instruction
                     self.pc += 1;
 
                     cycles = 12;
-                    // XXX
-                    self.pc = if immediate >= 0 {
-                        self.pc.saturating_add(immediate as u16)
-                    } else {
-                        let immediate = immediate.abs();
-                        self.pc.saturating_sub(immediate as u16)
-                    };
+                    self.pc = self.pc.wrapping_add_signed(immediate as i16);
+
                     return cycles;
                 }
-
-                cycles = 8;
             }
             0x2f => {
                 // CPL
@@ -1573,20 +1550,15 @@ impl Cpu {
 
                 self.current_op = format!("{0:#04x}      JR NC,{0:#04x} {0}", immediate);
 
-                self.pc += 1;
-
                 cycles = 8;
                 if (self.regs.flags & CARRY_FLAG) == 0 {
+                    self.pc += 1;
                     cycles = 12;
-                    // XXX
-                    self.pc = if immediate >= 0 {
-                        self.pc.saturating_add(immediate as u16)
-                    } else {
-                        let immediate = immediate.abs();
-                        self.pc.saturating_sub(immediate as u16)
-                    };
+
+                    self.pc = self.pc.wrapping_add_signed(immediate as i16);
+
+                    return cycles;
                 }
-                return cycles;
             }
             0xc3 => {
                 self.pc += 1;
