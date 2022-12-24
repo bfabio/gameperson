@@ -17,9 +17,17 @@ cargo run BOOT_ROM.bin ROM.gb
 
 - [x] CPU opcodes
 - [ ] Interrupts
+  - [x] VBlank
+  - [ ] LCD STAT
+  - [ ] Timer
+  - [ ] Serial
+  - [ ] Joypad
 - [ ] Timers
 - [ ] APU
-- [ ] GPU (Incomplete)
+- [ ] GPU
+  - [x] BG map
+  - [ ] Sprites
+  - [ ] Window
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
