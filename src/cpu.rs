@@ -945,17 +945,15 @@ impl Cpu {
                         // C - Set if borrow.
 
                         let c = if self.regs.flags & CARRY_FLAG == 0 { 0 } else { 1 };
-                        let (n_c, _) = n.overflowing_add(c);
-                        let (result, carry) = self.regs.a.overflowing_sub(n_c);
+                        let result = self.regs.a.wrapping_sub(n).wrapping_sub(c);
 
-                        // XXX
-                        self.regs.set_flag(HALF_CARRY_FLAG, true);
+                        self.regs.set_flag(HALF_CARRY_FLAG, (self.regs.a & 0xf) < (n & 0xf) + c) ;
+                        self.regs.set_flag(CARRY_FLAG, (self.regs.a as u16) < (n as u16) + (c as u16));
 
                         self.regs.a = result;
 
                         self.regs.set_flag(ZERO_FLAG, self.regs.a == 0);
                         self.regs.set_flag(SUBTRACT_FLAG, true);
-                        self.regs.set_flag(CARRY_FLAG, carry);
                     }
                     4 => {
                         // AND n
