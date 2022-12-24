@@ -1423,7 +1423,7 @@ impl Cpu {
                                 let location = self.index(reg_index);
                                 let value = location.load8(&self.regs, &memory);
 
-                                let swapped = value&0xf << 4 | value&0xf0 >> 4;
+                                let swapped = (value & 0xf) << 4 | (value & 0xf0) >> 4;
 
                                 location.store8(&mut self.regs, &mut memory, swapped);
 
