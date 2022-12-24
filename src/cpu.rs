@@ -344,9 +344,9 @@ impl Cpu {
                 //
                 //  after
                 //
-                //  +---+  +---------------------------------+
-                //  | 7 |  | 6 | 5 | 4 | 3 | 2 | 1 | 0 | 0x0 |
-                //  +---+  +---------------------------------+
+                //  +---+  +-------------------------------+
+                //  | 7 |  | 6 | 5 | 4 | 3 | 2 | 1 | 0 | 7 |
+                //  +---+  +-------------------------------+
                 //      C                                  A
                 //
                 // flags:
@@ -358,7 +358,7 @@ impl Cpu {
                 self.regs
                     .set_flag(CARRY_FLAG, self.regs.a & 0b1000_0000 != 0);
 
-                self.regs.a <<= 1;
+                self.regs.a = self.regs.a.rotate_left(1);
 
                 self.regs.set_flag(ZERO_FLAG, false);
                 self.regs.set_flag(SUBTRACT_FLAG, false);
@@ -385,6 +385,43 @@ impl Cpu {
                 self.current_op = format!("{:9} LD ({:#06x}),SP", " ", addr);
 
                 cycles = 20;
+            }
+            0x0f => {
+                // RRCA
+                //
+                // Rotate A right. Old bit 0 to Carry flag.
+                //
+                //  before:
+                //
+                //  +-------------------------------+ +---+
+                //  | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 | |   |
+                //  +-------------------------------+ +---+
+                //                                  A     C
+                //
+                //  after:
+                //
+                //  +-------------------------------+ +---+
+                //  | 0 | 7 | 6 | 5 | 4 | 3 | 2 | 1 | | 0 |
+                //  +-------------------------------+ +---+
+                //                                  A     C
+                //
+                // flags:
+                // Z: 0 (GBCPUman.pdf v1.01 is wrong on this one)
+                // N: 0
+                // H: 0
+                // C: Contains old bit 7 data.
+
+                self.regs
+                    .set_flag(CARRY_FLAG, self.regs.a & 0x1 != 0);
+
+                self.regs.a = self.regs.a.rotate_right(1);
+
+                self.regs.set_flag(ZERO_FLAG, false);
+                self.regs.set_flag(SUBTRACT_FLAG, false);
+                self.regs.set_flag(HALF_CARRY_FLAG, false);
+
+                self.current_op = format!("{:10} RRCA", " ");
+                cycles = 4;
             }
             0x17 => {
                 // RLA
