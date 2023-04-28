@@ -139,13 +139,33 @@ impl Gpu {
 
                 self.print_tile(self.get_tile(tile_num), &mut buffer.buffer, tile_x, tile_y);
             }
-            texture
-                .update(
-                    None,
-                    &buffer.buffer,
-                    BUFFER_WIDTH as usize * BYTES_PER_PIXEL as usize,
-                )
-                .unwrap();
+        }
+
+        // Show sprites if OBJ (Sprite) Display Enable is on
+        if self.lcdc & 0b10 != 0 {
+            // Read Sprite Attribute Table (OAM: Object Attribute Memory)
+            // (40 sprites attributes, 4 bytes each)
+            for attr in (0xfe00..0xff00).step_by(2) {
+                let memory = self.memory.borrow();
+
+                let x = memory.load(attr + 1).wrapping_sub(8);
+                let y = memory.load(attr).wrapping_sub(16);
+                let tile_index = memory.load(attr + 2);
+                let flags = memory.load(attr + 3);
+
+                // Load the palette from either OBP0 (Object Palette 0) or OBP1
+                let palette_addr = if flags & 0b1_0000 == 0 { 0xff48 } else { 0xff49 };
+                let palette = memory.load(palette_addr);
+
+                if x == 0 || y == 0 || x >= 168 || y >= 160 {
+                    continue;
+                }
+
+                // TODO: 8x16 sprites
+                // tiles are 16 bytes long
+                let sprite_addr = 0x8000 + u16::from(tile_index) * 16;
+                self.print_sprite(self.get_sprite(sprite_addr), &mut buffer.buffer, x, y, palette);
+            }
         }
 
         // LYC=LY Coincidence Interrupt enabled
@@ -155,6 +175,14 @@ impl Gpu {
 
         // VBlank
         if self.ly == 144 {
+            texture
+                .update(
+                    None,
+                    &buffer.buffer,
+                    BUFFER_WIDTH as usize * BYTES_PER_PIXEL as usize,
+                )
+                .unwrap();
+
             let scanline_src = Rect::new(0, self.scy as i32, 160, 144);
 
             canvas.copy(texture, scanline_src, None).unwrap();
@@ -165,6 +193,19 @@ impl Gpu {
         }
 
         None
+    }
+
+    fn get_sprite(&self, addr: u16) -> [u8; 16] {
+        let memory = self.memory.borrow();
+
+        let sprite_end = addr + 16;
+        let mut sprite: [u8; 16] = [0; 16];
+
+        for (i, addr) in (addr..sprite_end).enumerate() {
+            sprite[i] = memory.load(addr as usize);
+        }
+
+        sprite
     }
 
     fn get_tile(&self, tile_num: u8) -> [u8; 16] {
@@ -187,16 +228,54 @@ impl Gpu {
         tile
     }
 
-    fn palette_color() {
-        // FF47 - BGP - BG Palette Data (R/W) - Non CGB Mode Only
-        // This register assigns gray shades to the color numbers of the BG and Window tiles.
-        
+    fn palette_color(palette: u8, color_index: u8) -> (u8, u8, u8, u8) {
+        // palette:
         //   Bit 7-6 - Shade for Color Number 3
         //   Bit 5-4 - Shade for Color Number 2
         //   Bit 3-2 - Shade for Color Number 1
         //   Bit 1-0 - Shade for Color Number 0
 
-        unimplemented!();
+        let shift = color_index << 1;
+        let color_number = (palette >> shift) & 0b11;
+
+        match color_number {
+             0 => (0xFF, 0xE0, 0xF8, 0xD0), // Transparent (white for background)
+             1 => (0xFF, 0x88, 0xC0, 0x70), // Light gray
+             2 => (0xFF, 0x34, 0x68, 0x56), // Dark gray
+             3 => (0xFF, 0x10, 0x18, 0x20), // Black
+            _ => unreachable!(),
+        }
+    }
+
+    fn print_sprite(&self, sprite: [u8; 16], buffer: &mut [u8], x: u8, y: u8, palette: u8) {
+        let mut xx;
+        let mut yy;
+        for row in 0..=7 {
+            let b = (sprite[row * 2], sprite[1 + row * 2]);
+
+            for col in 0..=7 {
+                let color_index = ((b.0 >> (7 - col)) & 1) | (((b.1 >> (7 - col)) & 1) << 1);
+
+                // Do not render the transparent color (index 0)
+                if color_index == 0 {
+                    continue;
+                }
+
+                let color = Self::palette_color(palette, color_index);
+
+                xx = x as i32 + (col as i8 - 7).abs() as i32;
+                yy = y as i32 + row as i32;
+
+                let index =
+                    (xx as usize + yy as usize * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
+
+                // 4 bytes per pixel
+                buffer[index] = color.0;
+                buffer[index + 1] = color.1;
+                buffer[index + 2] = color.2;
+                buffer[index + 3] = color.3;
+            }
+        }
     }
 
     fn print_tile(&self, tile: [u8; 16], buffer: &mut [u8], x: u8, y: u8) {

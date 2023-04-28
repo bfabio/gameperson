@@ -186,7 +186,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
             step = ret.1;
         }
 
-        for _ in 0..1 {
+        while cycles < 200 {
             cycles += u16::from(cpu.decode());
         }
 
