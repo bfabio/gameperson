@@ -239,10 +239,10 @@ impl Gpu {
         let color_number = (palette >> shift) & 0b11;
 
         match color_number {
-             0 => (0xFF, 0xE0, 0xF8, 0xD0), // Transparent (white for background)
-             1 => (0xFF, 0x88, 0xC0, 0x70), // Light gray
-             2 => (0xFF, 0x34, 0x68, 0x56), // Dark gray
-             3 => (0xFF, 0x10, 0x18, 0x20), // Black
+            0 => (0xff, 0xe0, 0xf8, 0xd0), // Transparent (white for background)
+            1 => (0xff, 0x88, 0xc0, 0x70), // Light gray
+            2 => (0xff, 0x34, 0x68, 0x56), // Dark gray
+            3 => (0xff, 0x10, 0x18, 0x20), // Black
             _ => unreachable!(),
         }
     }
@@ -290,10 +290,10 @@ impl Gpu {
             for col in 0..=7 {
                 let palette = (b.0 & (1 << col), b.1 & (1 << col));
                 let color = match palette {
-                    (0, 0) => (0xff, 0xff, 0xff, 0xff),
-                    (_, 0) => (0xff, 0x00, 0x00, 0x00),
-                    (0, _) => (0xff, 0x00, 0xff, 0x00),
-                    (_, _) => (0xff, 0xff, 0x00, 0x00),
+                    (0, 0) => (0xff, 0xe0, 0xf8, 0xd0), // Transparent (white for background)
+                    (_, 0) => (0xff, 0x88, 0xc0, 0x70), // Light gray
+                    (0, _) => (0xff, 0x34, 0x68, 0x56), // Dark gray
+                    (_, _) => (0xff, 0x10, 0x18, 0x20), // Black
                 };
 
                 xx = x as i32 * 8 + (col as i8 - 7).abs() as i32;
