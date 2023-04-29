@@ -20,7 +20,6 @@ use sdl2::pixels::PixelFormatEnum;
 use sdl2::surface::Surface;
 
 use cartridge::Cartridge;
-use memory::IORegisters;
 use memory::Rom;
 use memory::Vram;
 
@@ -96,26 +95,22 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let mut cpu = cpu::Cpu::new(Rc::clone(&mem));
 
     let gpu = gpu::Gpu::new(Rc::clone(&mem));
-    let mut gpu_buffer = gpu::Buffer::new();
-
     let gpu = Rc::new(RefCell::new(gpu));
-    let io_registers = IORegisters::new(Rc::clone(&gpu));
-    let b = Box::new(io_registers);
 
-    // I/O Registers
-    mem.borrow_mut().map(0xff00, b);
+    mem.borrow_mut().set_gpu(Rc::clone(&gpu));
 
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
 
     let window = video_subsystem
-        .window("gameperson", 160, 144)
+        .window("", 160 * 2, 144 * 2)
         .position_centered()
         .opengl()
         .build()
         .map_err(|e| e.to_string())?;
 
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+
     let creator = canvas.texture_creator();
     let mut texture = creator.create_texture_target(PixelFormatEnum::RGBA8888, 256, 256)?;
 
@@ -190,7 +185,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
             cycles += u16::from(cpu.decode());
         }
 
-        match gpu.borrow_mut().display(&mut canvas, &mut texture, &mut gpu_buffer, cycles) {
+        match gpu.borrow_mut().display(&mut canvas, &mut texture, cycles) {
             Some(gpu::Interrupt::VBlank) => {
                 if cpu.interrupts_enabled && mem.borrow().ie & 0x1 != 0 {
                     cpu.vblank_int()
@@ -204,11 +199,80 @@ fn main() -> Result<(), Box<dyn error::Error>> {
             _ => (),
         }
 
-        // match Input::new(&mut event_pump) {
-        //     Some(Input::Joypad(JoypadButton::Up)) => println!("UP"),
-        //     Some(Input::Joypad(JoypadButton::Down)) => println!("Down"),
-        //     _ => {}
-        // }
+        // Bit 3 - P13 Input: Down  or Start    (0=Pressed) (Read Only)
+        // Bit 2 - P12 Input: Up    or Select   (0=Pressed) (Read Only)
+        // Bit 1 - P11 Input: Left  or B        (0=Pressed) (Read Only)
+        // Bit 0 - P10 Input: Right or A        (0=Pressed) (Read Only)
+
+        match Input::new(&mut event_pump) {
+            Some(Input::JoypadPress(JoypadButton::Up)) => {
+                println!("UP");
+                mem.borrow_mut().set_joy_state(0, 0b0100)
+            }
+            Some(Input::JoypadPress(JoypadButton::Down)) => {
+                println!("Down");
+                mem.borrow_mut().set_joy_state(0, 0b1000)
+            }
+            Some(Input::JoypadPress(JoypadButton::Left)) => {
+                println!("Left");
+                mem.borrow_mut().set_joy_state(0, 0b0010)
+            }
+            Some(Input::JoypadPress(JoypadButton::Right)) => {
+                println!("Right");
+                mem.borrow_mut().set_joy_state(0, 0b0001)
+            }
+            Some(Input::JoypadPress(JoypadButton::Start)) => {
+                println!("Start");
+                mem.borrow_mut().set_joy_state(0b1000, 0)
+            }
+            Some(Input::JoypadPress(JoypadButton::Select)) => {
+                println!("Select");
+                mem.borrow_mut().set_joy_state(0b0100, 0)
+            }
+            Some(Input::JoypadPress(JoypadButton::A)) => {
+                println!("A");
+                mem.borrow_mut().set_joy_state(0b0001, 0)
+            }
+            Some(Input::JoypadPress(JoypadButton::B)) => {
+                println!("B");
+                mem.borrow_mut().set_joy_state(0b0010, 0)
+            }
+
+            Some(Input::JoypadRelease(JoypadButton::Up)) => {
+                println!("UP");
+                mem.borrow_mut().unset_joy_state(0, 0b0100)
+            }
+            Some(Input::JoypadRelease(JoypadButton::Down)) => {
+                println!("Down");
+                mem.borrow_mut().unset_joy_state(0, 0b1000)
+            }
+            Some(Input::JoypadRelease(JoypadButton::Left)) => {
+                println!("Left");
+                mem.borrow_mut().unset_joy_state(0, 0b0010)
+            }
+            Some(Input::JoypadRelease(JoypadButton::Right)) => {
+                println!("Right");
+                mem.borrow_mut().unset_joy_state(0, 0b0001)
+            }
+            Some(Input::JoypadRelease(JoypadButton::Start)) => {
+                println!("Start");
+                mem.borrow_mut().unset_joy_state(0b1000, 0)
+            }
+            Some(Input::JoypadRelease(JoypadButton::Select)) => {
+                println!("Select");
+                mem.borrow_mut().unset_joy_state(0b0100, 0)
+            }
+            Some(Input::JoypadRelease(JoypadButton::A)) => {
+                println!("A");
+                mem.borrow_mut().unset_joy_state(0b0001, 0)
+            }
+            Some(Input::JoypadRelease(JoypadButton::B)) => {
+                println!("B");
+                mem.borrow_mut().unset_joy_state(0b0010, 0)
+            }
+
+            _ => {}
+        }
 
         if step {
             println!("{} {}", cpu, gpu.borrow().ly);

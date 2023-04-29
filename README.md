@@ -21,12 +21,12 @@ cargo run BOOT_ROM.bin ROM.gb
   - [ ] LCD STAT
   - [ ] Timer
   - [ ] Serial
-  - [ ] Joypad
+  - [x] Joypad
 - [ ] Timers
 - [ ] APU
 - [ ] GPU
   - [x] BG map
-  - [ ] Sprites
+  - [x] Sprites
   - [ ] Window
 
 ## Contributing

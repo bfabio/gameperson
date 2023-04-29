@@ -1721,7 +1721,6 @@ impl Cpu {
                 self.sp -= 1;
                 memory.write(self.sp as usize, (self.pc >> 8) as u8);
                 self.sp -= 1;
-                println!("sp: {} {:#06x} {:#06x}", self.sp, opcode, self.pc);
                 memory.write(self.sp as usize, (self.pc & 0xff) as u8);
 
                 self.pc = u16::from(opcode - 0xc7);

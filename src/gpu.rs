@@ -16,20 +16,9 @@ const BUFFER_WIDTH: u16 = 256;
 const BUFFER_SIZE: usize =
     BUFFER_HEIGHT as usize * BUFFER_WIDTH as usize * BYTES_PER_PIXEL as usize;
 
-pub struct Buffer {
-    pub buffer: [u8; BUFFER_SIZE],
-}
-
-impl Buffer {
-    pub const fn new() -> Self {
-        Self {
-            buffer: [0; BUFFER_SIZE],
-        }
-    }
-}
-
 pub struct Gpu {
     memory: Rc<RefCell<Memory>>,
+    buffer: [u8; BUFFER_SIZE],
 
     // The current vertical scanline being drawn.
     //
@@ -59,13 +48,11 @@ pub struct Gpu {
     // Bit 0 - BG Display (for CGB see below) (0=Off, 1=On)
     pub lcdc: u8,
 
-
     // TODO  FF41 - STAT - LCDC Status (R/W)
     pub stat: u8,
 
     // TODO doc LY Compare
     pub lyc: u8,
-
 
     // TODO doc
     // internal cycles counter
@@ -81,6 +68,7 @@ impl Gpu {
     pub fn new(memory: Rc<RefCell<Memory>>) -> Self {
         Self {
             memory,
+            buffer: [0; BUFFER_SIZE],
             ly: 0,
             scy: 0,
             scx: 0,
@@ -95,7 +83,6 @@ impl Gpu {
         &mut self,
         canvas: &mut Canvas<Window>,
         texture: &mut Texture,
-        buffer: &mut Buffer,
         cycles: u16,
     ) -> Option<Interrupt> {
         // TODO document
@@ -118,7 +105,6 @@ impl Gpu {
         }
 
         if self.ly == 0 {
-            let memory = self.memory.borrow();
 
             let mut tile_x: u8;
             let mut tile_y: u8;
@@ -132,12 +118,14 @@ impl Gpu {
             };
 
             for (i, tile_addr) in tile_map_range.enumerate() {
-                let tile_num = memory.load(tile_addr);
+                let tile_num = {
+                    self.memory.borrow().load(tile_addr)
+                };
 
                 tile_x = (i % 32) as u8;
                 tile_y = (i / 32) as u8;
 
-                self.print_tile(self.get_tile(tile_num), &mut buffer.buffer, tile_x, tile_y);
+                self.print_tile(self.get_tile(tile_num), tile_x, tile_y);
             }
         }
 
@@ -146,25 +134,30 @@ impl Gpu {
             // Read Sprite Attribute Table (OAM: Object Attribute Memory)
             // (40 sprites attributes, 4 bytes each)
             for attr in (0xfe00..0xff00).step_by(2) {
-                let memory = self.memory.borrow();
+                let (palette, tile_index, x, y) = {
+                    let memory = self.memory.borrow();
 
-                let x = memory.load(attr + 1).wrapping_sub(8);
-                let y = memory.load(attr).wrapping_sub(16);
-                let tile_index = memory.load(attr + 2);
-                let flags = memory.load(attr + 3);
+                    let x = memory.load(attr + 1).wrapping_sub(8);
+                    let y = memory.load(attr).wrapping_sub(16);
+                    if x == 0 || y == 0 || x >= 168 || y >= 160 {
+                        continue;
+                    }
 
-                // Load the palette from either OBP0 (Object Palette 0) or OBP1
-                let palette_addr = if flags & 0b1_0000 == 0 { 0xff48 } else { 0xff49 };
-                let palette = memory.load(palette_addr);
+                    let tile_index = memory.load(attr + 2);
+                    let flags = memory.load(attr + 3);
 
-                if x == 0 || y == 0 || x >= 168 || y >= 160 {
-                    continue;
-                }
+                    // Load the palette from either OBP0 (Object Palette 0) or OBP1
+                    let palette_addr = if flags & 0b1_0000 == 0 { 0xff48 } else { 0xff49 };
+
+                    let palette = memory.load(palette_addr);
+
+                    (palette, tile_index, x, y)
+                };
 
                 // TODO: 8x16 sprites
                 // tiles are 16 bytes long
                 let sprite_addr = 0x8000 + u16::from(tile_index) * 16;
-                self.print_sprite(self.get_sprite(sprite_addr), &mut buffer.buffer, x, y, palette);
+                self.print_sprite(self.get_sprite(sprite_addr), x, y, palette);
             }
         }
 
@@ -178,7 +171,7 @@ impl Gpu {
             texture
                 .update(
                     None,
-                    &buffer.buffer,
+                    &self.buffer,
                     BUFFER_WIDTH as usize * BYTES_PER_PIXEL as usize,
                 )
                 .unwrap();
@@ -247,7 +240,7 @@ impl Gpu {
         }
     }
 
-    fn print_sprite(&self, sprite: [u8; 16], buffer: &mut [u8], x: u8, y: u8, palette: u8) {
+    fn print_sprite(&mut self, sprite: [u8; 16], x: u8, y: u8, palette: u8) {
         let mut xx;
         let mut yy;
         for row in 0..=7 {
@@ -270,15 +263,15 @@ impl Gpu {
                     (xx as usize + yy as usize * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
 
                 // 4 bytes per pixel
-                buffer[index] = color.0;
-                buffer[index + 1] = color.1;
-                buffer[index + 2] = color.2;
-                buffer[index + 3] = color.3;
+                self.buffer[index] = color.0;
+                self.buffer[index + 1] = color.1;
+                self.buffer[index + 2] = color.2;
+                self.buffer[index + 3] = color.3;
             }
         }
     }
 
-    fn print_tile(&self, tile: [u8; 16], buffer: &mut [u8], x: u8, y: u8) {
+    fn print_tile(&mut self, tile: [u8; 16], x: u8, y: u8) {
         assert!(x < 32);
         assert!(y < 32);
 
@@ -303,10 +296,10 @@ impl Gpu {
                     (xx as usize + yy as usize * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
 
                 // 4 bytes per pixel
-                buffer[index] = color.0;
-                buffer[index + 1] = color.1;
-                buffer[index + 2] = color.2;
-                buffer[index + 3] = color.3;
+                self.buffer[index] = color.0;
+                self.buffer[index + 1] = color.1;
+                self.buffer[index + 2] = color.2;
+                self.buffer[index + 3] = color.3;
             }
         }
     }

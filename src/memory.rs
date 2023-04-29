@@ -4,6 +4,8 @@ use std::rc::Rc;
 use std::fmt;
 use std::ops::Range;
 
+use crate::input::{Input, JoypadButton};
+
 use crate::gpu::Gpu;
 
 ///!  0x0000              0x4000             0x8000                                 0xffff
@@ -108,13 +110,8 @@ use crate::gpu::Gpu;
 
 pub trait Region {
     fn read(&self, address: u16) -> u8;
-    fn write(&mut self, address: u16, value: u8) -> Option<AddressSpaceAction>;
+    fn write(&mut self, address: u16, value: u8);
     fn len(&self) -> usize;
-}
-
-pub enum AddressSpaceAction {
-    Unmap(u16),
-    DmaTransfer(u8),
 }
 
 pub struct Rom {
@@ -132,145 +129,8 @@ impl Region for Rom {
         self.mem[address as usize]
     }
 
-    fn write(&mut self, _address: u16, _value: u8) -> Option<AddressSpaceAction> {
-        None
-    }
-
-    fn len(&self) -> usize {
-        self.mem.len()
-    }
-}
-
-pub struct IORegisters {
-    mem: [u8; 0x7f],
-    gpu: Rc<RefCell<Gpu>>,
-}
-
-impl IORegisters {
-    pub fn new(gpu: Rc<RefCell<Gpu>>) -> Self {
-        Self {
-            mem: [0; 0x7f],
-            gpu,
-        }
-    }
-}
-
-impl Region for IORegisters {
-    // Usually at 0xff00 to 0xff7f
-
-    fn read(&self, address: u16) -> u8 {
-        match address {
-            0x00 => {
-                // Joypad buttons
-                // TODO
-                // All unpressed
-                0xff
-            }
-            // 0xff42 - SCY - Scroll Y
-            0x40 => self.gpu.borrow().lcdc,
-            0x41 => self.gpu.borrow().stat,
-            // 0xff42 - SCY - Scroll Y
-            // 0xff43 - SCX - Scroll X
-            // Specifies the position in the 256x256 pixels BG map (32x32 tiles)
-            // which is to be displayed at the upper/left LCD display position.
-            //
-            // Values in range from 0-255 may be used for X/Y each, the video
-            // controller automatically wraps back to the upper (left) position in
-            // BG map when drawing exceeds the lower (right) border of the BG map area.
-            // // 0x43 => {
-            // }
-            0x42 => self.gpu.borrow().scy,
-            // 0xff44: LY - LCDC Y-Coordinate
-            // Indicates the vertical line to which the present data is
-            // transferred to the LCD Driver.
-            //
-            // It can hold any value between 0 through 153.
-            // The values between 144 and 153 indicate the V-Blank period.
-            //
-            // Writing will reset the counter.
-            0x44 => self.gpu.borrow().ly,
-
-            // TODO doc
-            0x45 => self.gpu.borrow().lyc,
-            _ => {
-                self.mem[address as usize]
-            }
-        }
-    }
-    fn write(&mut self, address: u16, value: u8) -> Option<AddressSpaceAction> {
-        match address {
-            0x01 => {
-                println!("Serial: {}", value);
-                None
-            }
-            // 0xff02: SC - Serial Transfer Control (R/W)
-            0x02 => {
-                if value == 0x81 {
-                    // Print 0xff01 (SB - Serial transfer data (R/W))
-                    print!("{}", self.mem[0x01]);
-                }
-                None
-            }
-            // 0xff40: LCDC - LCD Control (R/W)
-            0x40 => {
-                self.gpu.borrow_mut().lcdc = value;
-                None
-            },
-            0x41 => {
-                self.gpu.borrow_mut().stat = value;
-                None
-            }
-            // 0xff42 - SCY - Scroll Y
-            // 0xff43 - SCX - Scroll X
-            // Specifies the position in the 256x256 pixels BG map (32x32 tiles)
-            // which is to be displayed at the upper/left LCD display position.
-            //
-            // Values in range from 0-255 may be used for X/Y each, the video
-            // controller automatically wraps back to the upper (left) position in
-            // BG map when drawing exceeds the lower (right) border of the BG map area.
-            // 0x43 => {
-            // }
-            0x42 => {
-                self.gpu.borrow_mut().scy = value;
-                None
-            }
-            0x44 => {
-                unimplemented!();
-            }
-            // FF45 - LYC - LY Compare (R/W)
-            // The gameboy permanently compares the value of the LYC and LY registers.
-            // When both values are identical, the coincident bit in the STAT register
-            // becomes set, and (if enabled) a STAT interrupt is requested.
-            0x45 => {
-                self.gpu.borrow_mut().lyc = value;
-                None
-            }
-            // Writing to this register launches a DMA transfer from ROM or RAM to
-            // Sprite Attribute Table (aka OAM)
-            // The written value specifies the transfer source address divided by 0x100h
-            //
-            // eg.
-            // value == 0x1b
-            // copies   0x1b00-0x1b9f to
-            //          0xfe00-0xfe9f
-            //
-            // value can be 0x00 to 0xf1
-            0x46 => {
-                Some(AddressSpaceAction::DmaTransfer(value))
-            }
-            // 0xff50: Unmap the boot ROM (TODO: Find the documentation)
-            0x50 => {
-                Some(AddressSpaceAction::Unmap(0x0000))
-            },
-            _ => {
-                //println!(
-                //    "(Fake write to I/O register at {:#06x} ({:#04x})) ",
-                //    address, value
-                //);
-                self.mem[address as usize] = value;
-                None
-            }
-        }
+    fn write(&mut self, _address: u16, _value: u8) {
+        ()
     }
 
     fn len(&self) -> usize {
@@ -295,7 +155,7 @@ impl Region for Vram {
         self.mem[address as usize]
     }
 
-    fn write(&mut self, address: u16, value: u8) -> Option<AddressSpaceAction> {
+    fn write(&mut self, address: u16, value: u8) {
         /*println!(
             "(Write to VRAM at {:#06x} ({:#04x}))",
             address + 0x8000,
@@ -306,7 +166,6 @@ impl Region for Vram {
         if (0x9800..=0x9fff).contains(&address) {
             println!("Write to {:#04x}: {:#04x}", address, value);
         }
-        None
     }
 
     fn len(&self) -> usize {
@@ -328,11 +187,17 @@ struct Mapping {
 }
 
 pub struct Memory {
+    gpu: Option<Rc<RefCell<Gpu>>>,
+
     ram: Vec<u8>,
     oam: Vec<u8>,
     zero_page: Vec<u8>,
     cartridge: Vec<u8>,
+    io_registers: Vec<u8>,
     pub ie: u8,
+
+    joy_action: u8,
+    joy_direction: u8,
 
     mappings: Vec<Mapping>,
 }
@@ -340,6 +205,7 @@ pub struct Memory {
 impl Memory {
     pub fn new() -> Self {
         Self {
+            gpu: None,
             // 8KiB
             // ram: vec![0; 0x2000],
 
@@ -349,11 +215,16 @@ impl Memory {
             /// 0xa0: 160 bytes
             oam: vec![0; 0xa0],
 
+            io_registers: vec![0; 0x7f],
+
             /// 127 bytes
             zero_page: vec![0; 127],
 
             cartridge: vec![],
             mappings: vec![],
+
+            joy_action: 0,
+            joy_direction: 0,
 
             // Interrupt Enable (0xffff)
             ie: 0,
@@ -456,7 +327,86 @@ impl Memory {
             // (0x8000..=0x9fff) => vram.read(address as u16 - 0x8000),
 
             // I/O Registers
-            // (0xff00..=0xff7f) => region.read(address as u16 - 0xff00),
+            // (0xff00..=0xff7f)
+
+            // Joypad buttons
+            // Bit 7 - Not used
+            // Bit 6 - Not used
+            // Bit 5 - P15 Select Action buttons    (0=Select)
+            // Bit 4 - P14 Select Direction buttons (0=Select)
+            // Bit 3 - P13 Input: Down  or Start    (0=Pressed) (Read Only)
+            // Bit 2 - P12 Input: Up    or Select   (0=Pressed) (Read Only)
+            // Bit 1 - P11 Input: Left  or B        (0=Pressed) (Read Only)
+            // Bit 0 - P10 Input: Right or A        (0=Pressed) (Read Only)
+            0xff00 => {
+                let high_nibble = self.io_registers[0] & 0xf0;
+
+                if self.io_registers[address - 0xff00] & 0b0010_0000 == 0 {
+                    high_nibble | !(self.joy_action & 0x0f) & 0xf
+                } else if self.io_registers[address - 0xff00] & 0b0001_0000 == 0 {
+                    high_nibble | !(self.joy_direction & 0x0f) & 0xf
+                } else {
+                    0xff
+                }
+            }
+            // 0xff42 - SCY - Scroll Y
+            0xff40 => {
+                if let Some(ref gpu) = self.gpu {
+                    gpu.borrow().lcdc
+                } else {
+                    0
+                }
+            }
+            0xff41 => {
+                if let Some(ref gpu) = self.gpu {
+                    gpu.borrow().stat
+                } else {
+                    0
+                }
+            }
+            // 0xff42 - SCY - Scroll Y
+            // 0xff43 - SCX - Scroll X
+            // Specifies the position in the 256x256 pixels BG map (32x32 tiles)
+            // which is to be displayed at the upper/left LCD display position.
+            //
+            // Values in range from 0-255 may be used for X/Y each, the video
+            // controller automatically wraps back to the upper (left) position in
+            // BG map when drawing exceeds the lower (right) border of the BG map area.
+            // // 0x43 => {
+            // }
+            0xff42 => {
+                if let Some(ref gpu) = self.gpu {
+                    gpu.borrow().scy
+                } else {
+                    0
+                }
+            }
+            // 0xff44: LY - LCDC Y-Coordinate
+            // Indicates the vertical line to which the present data is
+            // transferred to the LCD Driver.
+            //
+            // It can hold any value between 0 through 153.
+            // The values between 144 and 153 indicate the V-Blank period.
+            //
+            // Writing will reset the counter.
+            0xff44 => {
+                if let Some(ref gpu) = self.gpu {
+                    gpu.borrow().ly
+                } else {
+                    0
+                }
+            }
+            // TODO doc
+            0xff45 => {
+                if let Some(ref gpu) = self.gpu {
+                    gpu.borrow().lyc
+                } else {
+                    0
+                }
+            }
+            0xff47..=0xff48 => {
+                self.io_registers[address - 0xff00]
+            }
 
             // Internal RAM
             (0xc000..=0xdfff) => self.ram[address - 0xc000],
@@ -496,11 +446,7 @@ impl Memory {
 
     pub fn write(&mut self, address: usize, value: u8) {
         if let Some(mapping) = self.mapping_mut(address) {
-            match mapping.region.write(address as u16 - mapping.address_range.start, value) {
-                Some(AddressSpaceAction::Unmap(u)) => self.unmap(u),
-                Some(AddressSpaceAction::DmaTransfer(u)) => self.dma(u),
-                _ => {},
-            }
+            mapping.region.write(address as u16 - mapping.address_range.start, value)
         }
 
         match address {
@@ -513,6 +459,94 @@ impl Memory {
             // Sprite Attribute Table (aka OAM)
             0xfe00..=0xfe9f => self.oam[address - 0xfe00] = value,
 
+            // I/O Registers
+
+            // P1/JOYP: Joypad
+            // The eight Game Boy action/direction buttons are arranged as a 2x4 matrix.
+            // Select either action or direction buttons by writing to this register,
+            // then read out the bits 0-3.
+
+            // Bit 7 - Not used
+            // Bit 6 - Not used
+            // Bit 5 - P15 Select Action buttons    (0=Select)
+            // Bit 4 - P14 Select Direction buttons (0=Select)
+            // Bit 3 - P13 Input: Down  or Start    (0=Pressed) (Read Only)
+            // Bit 2 - P12 Input: Up    or Select   (0=Pressed) (Read Only)
+            // Bit 1 - P11 Input: Left  or B        (0=Pressed) (Read Only)
+            // Bit 0 - P10 Input: Right or A        (0=Pressed) (Read Only)
+            0xff00 => {
+                self.io_registers[address - 0xff00] = value
+            }
+            0xff01 => {
+                // println!("Serial: {}", value);
+            }
+            // SC - Serial Transfer Control (R/W)
+            0xff02 => {
+                if value == 0x81 {
+                    // Print 0xff01 (SB - Serial transfer data (R/W))
+                    // print!("{}", self.mem[0x01]);
+                }
+            }
+            // LCDC - LCD Control (R/W)
+            0xff40 => {
+                if let Some(ref gpu) = self.gpu {
+                    gpu.borrow_mut().lcdc = value;
+                }
+            },
+            0xff41 => {
+                if let Some(ref gpu) = self.gpu {
+                    gpu.borrow_mut().stat = value;
+                }
+            }
+            // 0xff42 - SCY - Scroll Y
+            // 0xff43 - SCX - Scroll X
+            // Specifies the position in the 256x256 pixels BG map (32x32 tiles)
+            // which is to be displayed at the upper/left LCD display position.
+            //
+            // Values in range from 0-255 may be used for X/Y each, the video
+            // controller automatically wraps back to the upper (left) position in
+            // BG map when drawing exceeds the lower (right) border of the BG map area.
+            // 0x43 => {
+            // }
+            0xff42 => {
+                if let Some(ref gpu) = self.gpu {
+                    gpu.borrow_mut().scy = value;
+                }
+            }
+            0xff44 => {
+                unimplemented!();
+            }
+            // LYC - LY Compare (R/W)
+            // The gameboy permanently compares the value of the LYC and LY registers.
+            // When both values are identical, the coincident bit in the STAT register
+            // becomes set, and (if enabled) a STAT interrupt is requested.
+            0xff45 => {
+                if let Some(ref gpu) = self.gpu {
+                    gpu.borrow_mut().lyc = value;
+                }
+            }
+            // Writing to this register launches a DMA transfer from ROM or RAM to
+            // Sprite Attribute Table (aka OAM)
+            // The written value specifies the transfer source address divided by 0x100h
+            //
+            // eg.
+            // value == 0x1b
+            // copies   0x1b00-0x1b9f to
+            //          0xfe00-0xfe9f
+            //
+            // value can be 0x00 to 0xf1
+            0xff46 => {
+                self.dma(value)
+            }
+            0xff47..=0xff48 => {
+                self.io_registers[address - 0xff00] = value
+            }
+
+            // Unmap the boot ROM (TODO: Find the documentation)
+            0xff50 => {
+                self.unmap(0x0000)
+            },
+
             // Zero Page
             (0xff80..=0xfffe) => self.zero_page[address - 0xff80] = value,
 
@@ -520,6 +554,22 @@ impl Memory {
 
             _ => {}
         }
+    }
+
+    // TODO: this is hacky
+    pub fn set_gpu(&mut self, gpu: Rc<RefCell<Gpu>>) {
+        self.gpu = Some(gpu);
+    }
+
+    // TODO: document bits, this is custom just to keep the state
+    pub fn set_joy_state(&mut self, action: u8, direction: u8) {
+        self.joy_action |= action;
+        self.joy_direction |= direction;
+    }
+
+    pub fn unset_joy_state(&mut self, action: u8, direction: u8) {
+        self.joy_action &= !action;
+        self.joy_direction &= !direction;
     }
 }
 
