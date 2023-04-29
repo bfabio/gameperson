@@ -1,8 +1,8 @@
 [package]
-name = "gb"
+name = "gameperson"
 description = "A GameBoy emulator"
 version = "0.1.0"
-repository = "https://github.com/bfabio/gb"
+repository = "https://github.com/bfabio/gameperson"
 authors = ["Fabio Bonelli <fb@fabiobonelli.it>"]
 license = "GPL-3.0-or-later"
 edition = "2018"

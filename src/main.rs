@@ -109,7 +109,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let video_subsystem = sdl_context.video()?;
 
     let window = video_subsystem
-        .window("gb", 160, 144)
+        .window("gameperson", 160, 144)
         .position_centered()
         .opengl()
         .build()
