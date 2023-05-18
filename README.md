@@ -1,4 +1,4 @@
-![gameboy-icon](gameboy.png)
+![gameboy-icon](images/gameboy.png)
 
 # gameperson
 
@@ -28,6 +28,10 @@ cargo run BOOT_ROM.bin ROM.gb
   - [x] BG map
   - [x] Sprites
   - [ ] Window
+
+## Screenshots
+
+<img src="images/tetris.png" width="150" />
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
