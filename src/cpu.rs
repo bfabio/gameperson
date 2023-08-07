@@ -48,23 +48,6 @@ impl Location {
         }
     }
 
-    #[allow(unused)]
-    fn load16(&self, regs: &Registers, address_space: &Memory) -> u16 {
-        match self {
-            Self::Register(_) => {
-                panic!("load16() called on a 8bit register");
-            }
-            Self::DoubleRegister(reg) => match reg {
-                Register16::BC => regs.bc(),
-                Register16::HL => regs.hl(),
-                Register16::DE => regs.de(),
-            },
-            Self::Address(address) => {
-                let (high, low) = (*address as usize, (*address + 1) as usize);
-                u16::from(address_space.load(high)) | u16::from(address_space.load(low) << 8)
-            }
-        }
-    }
     fn store8(&self, regs: &mut Registers, address_space: &mut Memory, value: u8) {
         match self {
             Self::Register(reg) => match reg {
@@ -83,23 +66,6 @@ impl Location {
                 address_space.write(*address as usize, value);
             }
         }
-    }
-
-    #[allow(unused)]
-    fn store16(&self, regs: &mut Registers, address_space: &mut Memory, value: u16) {
-        match self {
-            Self::Register(_) => {
-                panic!("store16() called on a 8bit register");
-            }
-            Self::DoubleRegister(reg) => match reg {
-                Register16::BC => regs.write_bc(value),
-                Register16::HL => regs.write_hl(value),
-                Register16::DE => regs.write_de(value),
-            },
-            Self::Address(_) => {
-                unimplemented!();
-            }
-        };
     }
 }
 
