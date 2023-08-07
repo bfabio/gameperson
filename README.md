@@ -6,11 +6,16 @@ A Nintendo Gameboy emulator written in Rust.
 
 ## Usage
 
-You'll need the [Gameboy boot rom](https://www.google.com/search?q=game+boy+boot+rom) and
-a ROM file to run.
+You'll need the [ROM file of a game](https://www.google.com/search?q=game+boy+roms) to run:
 
 ```shell
-cargo run BOOT_ROM.bin ROM.gb
+cargo run ROM.gb
+```
+
+If you want to use a specific [Gameboy boot rom](https://www.google.com/search?q=game+boy+boot+rom):
+
+```shell
+cargo run --boot-rom dmg_boot.bin ROM.gb
 ```
 
 ## Status

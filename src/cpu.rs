@@ -124,6 +124,20 @@ struct Registers {
 }
 
 impl Registers {
+    // State of registers as set by the DMG0 boot room after power on
+    pub fn new() -> Self {
+        Self {
+            a: 0x01,
+            b: 0xff,
+            c: 0x13,
+            d: 0x00,
+            e: 0xc1,
+            h: 0x84,
+            l: 0x03,
+            flags: 0x00,
+        }
+    }
+
     pub fn hl(&self) -> u16 {
         (u16::from(self.h) << 8) | u16::from(self.l)
     }
@@ -189,6 +203,18 @@ impl Cpu {
             regs: Registers::default(),
             sp: 0,
             pc: 0,
+            memory,
+            interrupts_enabled: false,
+            current_op: String::new(),
+        }
+    }
+
+    // State as set by the DMG0 boot room after power on
+    pub fn new_initialized(memory: Rc<RefCell<Memory>>) -> Cpu {
+        Self {
+            regs: Registers::new(),
+            sp: 0xfffe,
+            pc: 0x0100,
             memory,
             interrupts_enabled: false,
             current_op: String::new(),

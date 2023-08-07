@@ -13,6 +13,8 @@ use std::error;
 use std::fs;
 use std::rc::Rc;
 
+use clap::Parser;
+
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -68,13 +70,18 @@ fn debug(cpu: &mut cpu::Cpu, mem: &memory::Memory) -> (u16, bool) {
     }
 }
 
+#[derive(Parser)]
+struct Args {
+    rom: String,
+    #[arg(short, long)]
+    boot_rom: Option<String>,
+}
+
 #[allow(clippy::too_many_lines)]
 fn main() -> Result<(), Box<dyn error::Error>> {
-    let boot_rom_path = env::args().nth(1).expect("Boot ROM required");
-    let rom_path = env::args().nth(2).expect("ROM required");
+    let args = Args::parse();
 
-    let boot_rom = fs::read(&boot_rom_path)?;
-    let rom = fs::read(&rom_path)?;
+    let rom = fs::read(&args.rom)?;
 
     if let Some(cartridge) = Cartridge::new(&rom) {
         println!("Cartridge info\n{}", &cartridge);
@@ -84,7 +91,11 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
     let mut mem = memory::Memory::new();
 
-    mem.map(0x0000, Box::new(Rom::new(boot_rom)));
+    if let Some(boot_rom) = &args.boot_rom{
+        let boot_rom = fs::read(&boot_rom)?;
+        mem.map(0x0000, Box::new(Rom::new(boot_rom)));
+    }
+
     mem.map(0x0000, Box::new(Rom::new(rom)));
 
     // Video RAM
@@ -92,7 +103,11 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
     let mem = Rc::new(RefCell::new(mem));
 
-    let mut cpu = cpu::Cpu::new(Rc::clone(&mem));
+    let mut cpu = if args.boot_rom.is_some() {
+        cpu::Cpu::new(Rc::clone(&mem))
+    } else {
+        cpu::Cpu::new_initialized(Rc::clone(&mem))
+    };
 
     let gpu = gpu::Gpu::new(Rc::clone(&mem));
     let gpu = Rc::new(RefCell::new(gpu));
