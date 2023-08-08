@@ -241,8 +241,6 @@ impl Gpu {
     }
 
     fn print_sprite(&mut self, sprite: [u8; 16], x: u8, y: u8, palette: u8) {
-        let mut xx;
-        let mut yy;
         for row in 0..=7 {
             let b = (sprite[row * 2], sprite[1 + row * 2]);
 
@@ -256,11 +254,11 @@ impl Gpu {
 
                 let color = Self::palette_color(palette, color_index);
 
-                xx = x as i32 + (col as i8 - 7).abs() as i32;
-                yy = y as i32 + row as i32;
+                let xx = x as usize + col;
+                let yy = y as usize + row;
 
                 let index =
-                    (xx as usize + yy as usize * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
+                    (xx + yy * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
 
                 // 4 bytes per pixel
                 self.buffer[index] = color.0;
