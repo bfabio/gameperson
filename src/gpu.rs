@@ -113,8 +113,8 @@ impl Gpu {
                 // BG Map Data 1
                 0x9800..=0x9bff
             } else {
-                0x9c00..=0x9fff
                 // BG Map Data 2
+                0x9c00..=0x9fff
             };
 
             for (i, tile_addr) in tile_map_range.enumerate() {
@@ -125,7 +125,7 @@ impl Gpu {
                 tile_x = (i % 32) as u8;
                 tile_y = (i / 32) as u8;
 
-                self.print_tile(self.get_tile(tile_num), tile_x, tile_y);
+                self.show_tile(self.get_tile(tile_num), tile_x * 8, tile_y * 8);
             }
         }
 
@@ -174,7 +174,7 @@ impl Gpu {
                     }
                 }
 
-                self.print_sprite(sprite, x, y, palette);
+                self.show_sprite(sprite, x, y, palette);
             }
         }
 
@@ -239,65 +239,62 @@ impl Gpu {
         tile
     }
 
-    fn palette_color(palette: u8, color_index: u8) -> (u8, u8, u8, u8) {
+    fn palette_color(palette: u8, color_index: u8) -> Option<(u8, u8, u8, u8)> {
         // palette:
         //   Bit 7-6 - Shade for Color Number 3
         //   Bit 5-4 - Shade for Color Number 2
         //   Bit 3-2 - Shade for Color Number 1
         //   Bit 1-0 - Shade for Color Number 0
 
-        let shift = color_index << 1;
-        let color_number = (palette >> shift) & 0b11;
+        // Transparent for sprites palette
+        if color_index == 0 {
+            return None;
+        }
 
-        match color_number {
-            0 => (0xff, 0xe0, 0xf8, 0xd0), // Transparent (white for background)
+        let color_number = (palette >> (color_index << 1)) & 0b11;
+
+        Some(match color_number {
+            0 => (0xff, 0xe0, 0xf8, 0xd0), // White
             1 => (0xff, 0x88, 0xc0, 0x70), // Light gray
             2 => (0xff, 0x34, 0x68, 0x56), // Dark gray
             3 => (0xff, 0x10, 0x18, 0x20), // Black
             _ => unreachable!(),
-        }
+        })
     }
 
-    fn print_sprite(&mut self, sprite: [u8; 16], x: u8, y: u8, palette: u8) {
+    fn show_sprite(&mut self, sprite: [u8; 16], x: u8, y: u8, palette: u8) {
         for row in 0..=7 {
             let b = (sprite[row * 2], sprite[1 + row * 2]);
 
             for col in 0..=7 {
                 let color_index = ((b.0 >> (7 - col)) & 1) | (((b.1 >> (7 - col)) & 1) << 1);
 
-                // Do not render the transparent color (index 0)
-                if color_index == 0 {
-                    continue;
-                }
-
                 let color = Self::palette_color(palette, color_index);
 
-                let xx = x as usize + col;
-                let yy = y as usize + row;
+                // Do not render the transparent color (index 0)
+                if let Some(color) = color {
+                    let xx = x as usize + col + self.scx as usize;
+                    let yy = y as usize + row + self.scy as usize;
 
-                let index =
-                    (xx + yy * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
+                    let index =
+                        (xx + yy * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
 
-                // 4 bytes per pixel
-                self.buffer[index] = color.0;
-                self.buffer[index + 1] = color.1;
-                self.buffer[index + 2] = color.2;
-                self.buffer[index + 3] = color.3;
+                    // 4 bytes per pixel
+                    self.buffer[index] = color.0;
+                    self.buffer[index + 1] = color.1;
+                    self.buffer[index + 2] = color.2;
+                    self.buffer[index + 3] = color.3;
+                }
             }
         }
     }
 
-    fn print_tile(&mut self, tile: [u8; 16], x: u8, y: u8) {
-        assert!(x < 32);
-        assert!(y < 32);
-
-        let mut xx;
-        let mut yy;
+    fn show_tile(&mut self, tile: [u8; 16], x: u8, y: u8) {
         for row in 0..=7 {
             let b = (tile[row * 2], tile[1 + row * 2]);
 
             for col in 0..=7 {
-                let palette = (b.0 & (1 << col), b.1 & (1 << col));
+                let palette = (((b.0 >> (7 - col)) & 1), (((b.1 >> (7 - col)) & 1) << 1));
                 let color = match palette {
                     (0, 0) => (0xff, 0xe0, 0xf8, 0xd0), // Transparent (white for background)
                     (_, 0) => (0xff, 0x88, 0xc0, 0x70), // Light gray
@@ -305,11 +302,11 @@ impl Gpu {
                     (_, _) => (0xff, 0x10, 0x18, 0x20), // Black
                 };
 
-                xx = x as i32 * 8 + (col as i8 - 7).abs() as i32;
-                yy = (y as i32 * 8) + row as i32;
+                let xx = x as usize + col;
+                let yy = y as usize + row;
 
                 let index =
-                    (xx as usize + yy as usize * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
+                    (xx + yy * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
 
                 // 4 bytes per pixel
                 self.buffer[index] = color.0;
