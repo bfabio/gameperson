@@ -221,14 +221,6 @@ impl Cpu {
         }
     }
 
-    pub fn dump_mem(&self) {
-        println!("{}", self.memory.borrow());
-    }
-
-    pub fn load_immediate8(&self) -> u8 {
-        self.memory.borrow().load(self.pc as usize)
-    }
-
     pub fn index(&self, index: u8) -> Location {
         match index {
             0 => Location::Register(Register8::B),

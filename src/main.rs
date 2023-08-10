@@ -8,7 +8,7 @@ mod memory;
 
 use std::cell::RefCell;
 use std::io::stdin;
-use std::env;
+
 use std::error;
 use std::fs;
 use std::rc::Rc;
@@ -17,16 +17,16 @@ use clap::Parser;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::pixels::Color;
+
 use sdl2::pixels::PixelFormatEnum;
-use sdl2::surface::Surface;
+
 
 use cartridge::Cartridge;
 use memory::Rom;
 use memory::Vram;
 
 use input::{Input, JoypadButton};
-use sdl2::sys::SDL_bool;
+
 
 fn debug(cpu: &mut cpu::Cpu, mem: &memory::Memory) -> (u16, bool) {
     println!("b HEX - run until - HEX = 0 to reset");
