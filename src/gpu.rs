@@ -133,8 +133,8 @@ impl Gpu {
         if self.lcdc & 0b10 != 0 {
             // Read Sprite Attribute Table (OAM: Object Attribute Memory)
             // (40 sprites attributes, 4 bytes each)
-            for attr in (0xfe00..0xff00).step_by(2) {
-                let (palette, tile_index, x, y) = {
+            for attr in (0xfe00..0xff00).step_by(4) {
+                let (palette, tile_index, x, y, flags) = {
                     let memory = self.memory.borrow();
 
                     let x = memory.load(attr + 1).wrapping_sub(8);
@@ -151,13 +151,30 @@ impl Gpu {
 
                     let palette = memory.load(palette_addr);
 
-                    (palette, tile_index, x, y)
+                    (palette, tile_index, x, y, flags)
                 };
 
                 // TODO: 8x16 sprites
                 // tiles are 16 bytes long
                 let sprite_addr = 0x8000 + u16::from(tile_index) * 16;
-                self.print_sprite(self.get_sprite(sprite_addr), x, y, palette);
+
+                let mut sprite = self.get_sprite(sprite_addr);
+                if flags & 0b10_0000 != 0 {
+                    // X flip
+                    for byte in &mut sprite {
+                        *byte = byte.reverse_bits();
+                    }
+                }
+
+                if flags & 0b100_0000 != 0 {
+                    // Y flip
+                    sprite.reverse();
+                    for pair in sprite.chunks_exact_mut(2) {
+                        pair.reverse();
+                    }
+                }
+
+                self.print_sprite(sprite, x, y, palette);
             }
         }
 
