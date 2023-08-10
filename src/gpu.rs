@@ -223,16 +223,17 @@ impl Gpu {
 
         // TODO doc
         // Bit 4 - BG & Window Tile Data Select (0=8800-97FF, 1=8000-8FFF)
-        let tiles_address = if self.lcdc & 0b1_0000 == 0 { 0x8800 } else { 0x8000 };
-
-        let tile_start = tiles_address + u16::from(tile_num) * 16;
-        let tile_end = tile_start + 16;
+        let tile_start = if self.lcdc & 0b1_0000 == 0 {
+            0x9000_u16.wrapping_add_signed(i16::from(tile_num as i8) * 16)
+        } else {
+            0x8000 + u16::from(tile_num) * 16
+        };
 
         let mut tile: [u8; 16] = [0; 16];
 
         // Tile RAM
-        for (i, addr) in (tile_start..tile_end).enumerate() {
-            tile[i] = memory.load(addr as usize);
+        for (i, tile_byte) in tile.iter_mut().enumerate() {
+            *tile_byte = memory.load(tile_start as usize + i)
         }
 
         tile
