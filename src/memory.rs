@@ -4,8 +4,6 @@ use std::rc::Rc;
 use std::fmt;
 use std::ops::Range;
 
-
-
 use crate::gpu::Gpu;
 
 ///!  0x0000              0x4000             0x8000                                 0xffff
@@ -212,12 +210,12 @@ impl Memory {
             // FIXME
             ram: vec![0; 0x20000],
 
-            /// 0xa0: 160 bytes
+            // 0xa0: 160 bytes
             oam: vec![0; 0xa0],
 
             io_registers: vec![0; 0x7f],
 
-            /// 127 bytes
+            // 127 bytes
             zero_page: vec![0; 127],
 
             cartridge: vec![],
@@ -273,7 +271,7 @@ impl Memory {
     // XXX doc
     fn dma(&mut self, addr: u8) {
         let address = (addr as u16) << 8;
-        for a in address..=address+0x9f {
+        for a in address..=address + 0x9f {
             // XXX improve
             self.oam[a as usize - address as usize] = self.load(a as usize)
         }
@@ -404,9 +402,7 @@ impl Memory {
                     0
                 }
             }
-            0xff47..=0xff48 => {
-                self.io_registers[address - 0xff00]
-            }
+            0xff47..=0xff48 => self.io_registers[address - 0xff00],
 
             // Internal RAM
             (0xc000..=0xdfff) => self.ram[address - 0xc000],
@@ -446,7 +442,9 @@ impl Memory {
 
     pub fn write(&mut self, address: usize, value: u8) {
         if let Some(mapping) = self.mapping_mut(address) {
-            mapping.region.write(address as u16 - mapping.address_range.start, value)
+            mapping
+                .region
+                .write(address as u16 - mapping.address_range.start, value)
         }
 
         match address {
@@ -474,9 +472,7 @@ impl Memory {
             // Bit 2 - P12 Input: Up    or Select   (0=Pressed) (Read Only)
             // Bit 1 - P11 Input: Left  or B        (0=Pressed) (Read Only)
             // Bit 0 - P10 Input: Right or A        (0=Pressed) (Read Only)
-            0xff00 => {
-                self.io_registers[address - 0xff00] = value
-            }
+            0xff00 => self.io_registers[address - 0xff00] = value,
             0xff01 => {
                 // println!("Serial: {}", value);
             }
@@ -491,8 +487,9 @@ impl Memory {
             0xff40 => {
                 if let Some(ref gpu) = self.gpu {
                     gpu.borrow_mut().lcdc = value;
+                    println!("LCDC change: {:08b}", value)
                 }
-            },
+            }
             0xff41 => {
                 if let Some(ref gpu) = self.gpu {
                     gpu.borrow_mut().stat = value;
@@ -535,17 +532,11 @@ impl Memory {
             //          0xfe00-0xfe9f
             //
             // value can be 0x00 to 0xf1
-            0xff46 => {
-                self.dma(value)
-            }
-            0xff47..=0xff48 => {
-                self.io_registers[address - 0xff00] = value
-            }
+            0xff46 => self.dma(value),
+            0xff47..=0xff48 => self.io_registers[address - 0xff00] = value,
 
             // Unmap the boot ROM (TODO: Find the documentation)
-            0xff50 => {
-                self.unmap(0x0000)
-            },
+            0xff50 => self.unmap(0x0000),
 
             // Zero Page
             (0xff80..=0xfffe) => self.zero_page[address - 0xff80] = value,
