@@ -1,10 +1,12 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use std::fmt;
 use std::ops::Range;
 
+use sdl2::render::Canvas;
+use sdl2::render::Texture;
+use sdl2::video::Window;
+
 use crate::gpu::Gpu;
+use crate::gpu::Interrupt;
 
 ///!  0x0000              0x4000             0x8000                                 0xffff
 ///!    ↑                    ↑                  ↑                                      ↑
@@ -136,59 +138,15 @@ impl Region for Rom {
     }
 }
 
-pub struct Vram {
-    mem: [u8; 0x2000], // 8KiB
-}
-
-impl Vram {
-    pub const fn new() -> Self {
-        Self { mem: [0; 0x2000] }
-    }
-}
-
-impl Region for Vram {
-    // Usually at 0x8000 to 0x9fff
-
-    fn read(&self, address: u16) -> u8 {
-        self.mem[address as usize]
-    }
-
-    fn write(&mut self, address: u16, value: u8) {
-        /*println!(
-            "(Write to VRAM at {:#06x} ({:#04x}))",
-            address + 0x8000,
-            value
-        );*/
-
-        self.mem[address as usize] = value;
-        if (0x9800..=0x9fff).contains(&address) {
-            println!("Write to {:#04x}: {:#04x}", address, value);
-        }
-    }
-
-    fn len(&self) -> usize {
-        self.mem.len()
-    }
-}
-
-impl fmt::Display for Vram {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // XXX Print just the Tile RAM for now
-        // XXX Better method
-        writeln!(f, "{:x?}", &self.mem[0x00..0x200])
-    }
-}
-
 struct Mapping {
     address_range: Range<u16>,
     region: Box<dyn Region>,
 }
 
 pub struct Memory {
-    gpu: Option<Rc<RefCell<Gpu>>>,
+    gpu: Gpu,
 
     ram: Vec<u8>,
-    oam: Vec<u8>,
     zero_page: Vec<u8>,
     cartridge: Vec<u8>,
     io_registers: Vec<u8>,
@@ -201,17 +159,14 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn new() -> Self {
+    pub fn new(gpu: Gpu) -> Self {
         Self {
-            gpu: None,
+            gpu,
             // 8KiB
             // ram: vec![0; 0x2000],
 
             // FIXME
             ram: vec![0; 0x20000],
-
-            // 0xa0: 160 bytes
-            oam: vec![0; 0xa0],
 
             io_registers: vec![0; 0x7f],
 
@@ -273,7 +228,7 @@ impl Memory {
         let address = (addr as u16) << 8;
         for a in address..=address + 0x9f {
             // XXX improve
-            self.oam[a as usize - address as usize] = self.load(a as usize)
+            self.gpu.write(a - address + 0xfe00, self.load(a as usize))
         }
     }
 
@@ -322,7 +277,7 @@ impl Memory {
             }
 
             // Video RAM
-            // (0x8000..=0x9fff) => vram.read(address as u16 - 0x8000),
+            (0x8000..=0x9fff) => self.gpu.read(address as u16),
 
             // I/O Registers
             // (0xff00..=0xff7f)
@@ -347,21 +302,9 @@ impl Memory {
                     0xff
                 }
             }
-            // 0xff42 - SCY - Scroll Y
-            0xff40 => {
-                if let Some(ref gpu) = self.gpu {
-                    gpu.borrow().lcdc
-                } else {
-                    0
-                }
-            }
-            0xff41 => {
-                if let Some(ref gpu) = self.gpu {
-                    gpu.borrow().stat
-                } else {
-                    0
-                }
-            }
+            0xff40 => self.gpu.read(address as u16),
+            0xff41 => self.gpu.read(address as u16),
+
             // 0xff42 - SCY - Scroll Y
             // 0xff43 - SCX - Scroll X
             // Specifies the position in the 256x256 pixels BG map (32x32 tiles)
@@ -372,13 +315,8 @@ impl Memory {
             // BG map when drawing exceeds the lower (right) border of the BG map area.
             // // 0x43 => {
             // }
-            0xff42 => {
-                if let Some(ref gpu) = self.gpu {
-                    gpu.borrow().scy
-                } else {
-                    0
-                }
-            }
+            0xff42 => self.gpu.read(address as u16),
+
             // 0xff44: LY - LCDC Y-Coordinate
             // Indicates the vertical line to which the present data is
             // transferred to the LCD Driver.
@@ -387,22 +325,12 @@ impl Memory {
             // The values between 144 and 153 indicate the V-Blank period.
             //
             // Writing will reset the counter.
-            0xff44 => {
-                if let Some(ref gpu) = self.gpu {
-                    gpu.borrow().ly
-                } else {
-                    0
-                }
-            }
+            0xff44 => self.gpu.read(address as u16),
+
             // TODO doc
-            0xff45 => {
-                if let Some(ref gpu) = self.gpu {
-                    gpu.borrow().lyc
-                } else {
-                    0
-                }
-            }
-            0xff47..=0xff48 => self.io_registers[address - 0xff00],
+            0xff45 => self.gpu.read(address as u16),
+
+            0xff47..=0xff48 => self.gpu.read(address as u16),
 
             // Internal RAM
             (0xc000..=0xdfff) => self.ram[address - 0xc000],
@@ -412,7 +340,7 @@ impl Memory {
             0xe000..=0xfdff => self.ram[address - 0x2000 - 0xc000],
 
             // Sprite Attribute Table (aka OAM)
-            0xfe00..=0xfe9f => self.oam[address - 0xfe00],
+            0xfe00..=0xfe9f => self.gpu.read(address as u16),
 
             // Zero Page
             (0xff80..=0xfffe) => self.zero_page[address - 0xff80],
@@ -451,11 +379,14 @@ impl Memory {
             // Cartridge ROM
             //(0x0..=0x7fff) => panic!(),
 
+            // Video RAM
+            (0x8000..=0x9fff) => self.gpu.write(address as u16, value),
+
             // Internal RAM
             (0xc000..=0xdfff) => self.ram[address - 0xc000] = value,
 
             // Sprite Attribute Table (aka OAM)
-            0xfe00..=0xfe9f => self.oam[address - 0xfe00] = value,
+            0xfe00..=0xfe9f => self.gpu.write(address as u16, value),
 
             // I/O Registers
 
@@ -485,15 +416,11 @@ impl Memory {
             }
             // LCDC - LCD Control (R/W)
             0xff40 => {
-                if let Some(ref gpu) = self.gpu {
-                    gpu.borrow_mut().lcdc = value;
-                    println!("LCDC change: {:08b}", value)
-                }
+                self.gpu.write(address as u16, value);
+                println!("LCDC change: {:08b}", value)
             }
             0xff41 => {
-                if let Some(ref gpu) = self.gpu {
-                    gpu.borrow_mut().stat = value;
-                }
+                self.gpu.write(address as u16, value);
             }
             // 0xff42 - SCY - Scroll Y
             // 0xff43 - SCX - Scroll X
@@ -506,9 +433,7 @@ impl Memory {
             // 0x43 => {
             // }
             0xff42 => {
-                if let Some(ref gpu) = self.gpu {
-                    gpu.borrow_mut().scy = value;
-                }
+                self.gpu.write(address as u16, value);
             }
             0xff44 => {
                 unimplemented!();
@@ -518,9 +443,7 @@ impl Memory {
             // When both values are identical, the coincident bit in the STAT register
             // becomes set, and (if enabled) a STAT interrupt is requested.
             0xff45 => {
-                if let Some(ref gpu) = self.gpu {
-                    gpu.borrow_mut().lyc = value;
-                }
+                self.gpu.write(address as u16, value);
             }
             // Writing to this register launches a DMA transfer from ROM or RAM to
             // Sprite Attribute Table (aka OAM)
@@ -533,7 +456,7 @@ impl Memory {
             //
             // value can be 0x00 to 0xf1
             0xff46 => self.dma(value),
-            0xff47..=0xff48 => self.io_registers[address - 0xff00] = value,
+            0xff47..=0xff48 => self.gpu.write(address as u16, value),
 
             // Unmap the boot ROM (TODO: Find the documentation)
             0xff50 => self.unmap(0x0000),
@@ -547,11 +470,6 @@ impl Memory {
         }
     }
 
-    // TODO: this is hacky
-    pub fn set_gpu(&mut self, gpu: Rc<RefCell<Gpu>>) {
-        self.gpu = Some(gpu);
-    }
-
     // TODO: document bits, this is custom just to keep the state
     pub fn set_joy_state(&mut self, action: u8, direction: u8) {
         self.joy_action |= action;
@@ -561,6 +479,15 @@ impl Memory {
     pub fn unset_joy_state(&mut self, action: u8, direction: u8) {
         self.joy_action &= !action;
         self.joy_direction &= !direction;
+    }
+
+    pub fn display(
+        &mut self,
+        canvas: &mut Canvas<Window>,
+        texture: &mut Texture,
+        cycles: u16,
+    ) -> Option<Interrupt> {
+        self.gpu.display(canvas, texture, cycles)
     }
 }
 
