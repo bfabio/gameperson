@@ -1,13 +1,9 @@
-use std::cell::RefCell;
 use std::fmt;
-use std::rc::Rc;
 
 use sdl2::rect::Rect;
 use sdl2::render::Canvas;
 use sdl2::render::Texture;
 use sdl2::video::Window;
-
-use crate::memory::Memory;
 
 const BYTES_PER_PIXEL: u8 = 4; // RGBA8888
 const BUFFER_HEIGHT: u16 = 256;
@@ -17,7 +13,9 @@ const BUFFER_SIZE: usize =
     BUFFER_HEIGHT as usize * BUFFER_WIDTH as usize * BYTES_PER_PIXEL as usize;
 
 pub struct Gpu {
-    memory: Rc<RefCell<Memory>>,
+    vram: [u8; 0x2000], // 8KiB
+    oam: [u8; 0xa0],
+
     buffer: [u8; BUFFER_SIZE],
 
     // The current vertical scanline being drawn.
@@ -54,6 +52,14 @@ pub struct Gpu {
     // TODO doc LY Compare
     pub lyc: u8,
 
+    // Background palette data
+    bgp: u8,
+
+    // Object Palette 0
+    obp0: u8,
+    // Object Palette 1
+    obp1: u8,
+
     // TODO doc
     // internal cycles counter
     cycles: u16,
@@ -65,9 +71,10 @@ pub enum Interrupt {
 }
 
 impl Gpu {
-    pub fn new(memory: Rc<RefCell<Memory>>) -> Self {
+    pub fn new() -> Self {
         Self {
-            memory,
+            vram: [0; 0x2000],
+            oam: [0; 0xa0],
             buffer: [0; BUFFER_SIZE],
             ly: 0,
             scy: 0,
@@ -75,7 +82,56 @@ impl Gpu {
             cycles: 0,
             lcdc: 0,
             lyc: 0,
+            bgp: 0,
+            obp0: 0,
+            obp1: 0,
             stat: 0,
+        }
+    }
+
+    pub fn read(&self, address: u16) -> u8 {
+        match address {
+            0x8000..=0x9fff => self.vram[(address - 0x8000) as usize],
+            0xfe00..=0xfe9f => self.oam[(address - 0xfe00) as usize],
+            0xff40 => self.lcdc,
+            0xff41 => self.stat,
+            0xff42 => self.scy,
+            0xff43 => self.scx,
+            0xff44 => self.ly,
+            0xff45 => self.lyc,
+
+            0xff47 => self.bgp,
+            0xff48 => self.obp0,
+            0xff49 => self.obp1,
+            // 0xff4a wy
+            // 0xff4b wx
+            _ => 0,
+        }
+    }
+
+    pub fn write(&mut self, address: u16, value: u8) {
+        // println!("(Write to VRAM at {:#06x} ({:#04x}))", address, value);
+
+        match address {
+            0x8000..=0x9fff => self.vram[(address - 0x8000) as usize] = value,
+            0xfe00..=0xfe9f => self.oam[(address - 0xfe00) as usize] = value,
+            0xff40 => self.lcdc = value,
+            0xff41 => self.stat = value,
+            0xff42 => self.scy = value,
+            0xff43 => self.scx = value,
+            0xff44 => self.ly = value,
+            0xff45 => self.lyc = value,
+
+            0xff47 => self.bgp = value,
+            0xff48 => self.obp0 = value,
+            0xff49 => self.obp1 = value,
+            // 0xff4a wy
+            // 0xff4b wx
+            _ => (),
+        }
+
+        if (0x9800..=0x9fff).contains(&address) {
+            println!("Write to {:#04x}: {:#04x}", address, value);
         }
     }
 
@@ -89,7 +145,7 @@ impl Gpu {
         // XXX is this right?
         // Bit 7 - LCD Display Enable (0=Off, 1=On)
         if self.lcdc & 0b1000_0000 == 0 {
-            return None
+            return None;
         }
 
         self.cycles += cycles;
@@ -105,7 +161,6 @@ impl Gpu {
         }
 
         if self.ly == 0 {
-
             let mut tile_x: u8;
             let mut tile_y: u8;
 
@@ -118,9 +173,7 @@ impl Gpu {
             };
 
             for (i, tile_addr) in tile_map_range.enumerate() {
-                let tile_num = {
-                    self.memory.borrow().load(tile_addr)
-                };
+                let tile_num = self.read(tile_addr);
 
                 tile_x = (i % 32) as u8;
                 tile_y = (i / 32) as u8;
@@ -133,23 +186,22 @@ impl Gpu {
         if self.lcdc & 0b10 != 0 {
             // Read Sprite Attribute Table (OAM: Object Attribute Memory)
             // (40 sprites attributes, 4 bytes each)
-            for attr in (0xfe00..0xff00).step_by(4) {
+            for attr in (0xfe00..0xfea0).step_by(4) {
                 let (palette, tile_index, x, y, flags) = {
-                    let memory = self.memory.borrow();
-
-                    let x = memory.load(attr + 1).wrapping_sub(8);
-                    let y = memory.load(attr).wrapping_sub(16);
+                    let x = self.read(attr + 1).wrapping_sub(8);
+                    let y = self.read(attr).wrapping_sub(16);
                     if x == 0 || y == 0 || x >= 168 || y >= 160 {
                         continue;
                     }
 
-                    let tile_index = memory.load(attr + 2);
-                    let flags = memory.load(attr + 3);
+                    let tile_index = self.read(attr + 2);
+                    let flags = self.read(attr + 3);
 
-                    // Load the palette from either OBP0 (Object Palette 0) or OBP1
-                    let palette_addr = if flags & 0b1_0000 == 0 { 0xff48 } else { 0xff49 };
-
-                    let palette = memory.load(palette_addr);
+                    let palette = if flags & 0b1_0000 == 0 {
+                        self.obp0
+                    } else {
+                        self.obp1
+                    };
 
                     (palette, tile_index, x, y, flags)
                 };
@@ -206,21 +258,17 @@ impl Gpu {
     }
 
     fn get_sprite(&self, addr: u16) -> [u8; 16] {
-        let memory = self.memory.borrow();
-
         let sprite_end = addr + 16;
         let mut sprite: [u8; 16] = [0; 16];
 
         for (i, addr) in (addr..sprite_end).enumerate() {
-            sprite[i] = memory.load(addr as usize);
+            sprite[i] = self.vram[(addr - 0x8000) as usize];
         }
 
         sprite
     }
 
     fn get_tile(&self, tile_num: u8) -> [u8; 16] {
-        let memory = self.memory.borrow();
-
         // TODO doc
         // Bit 4 - BG & Window Tile Data Select (0=8800-97FF, 1=8000-8FFF)
         let tile_start = if self.lcdc & 0b1_0000 == 0 {
@@ -233,7 +281,7 @@ impl Gpu {
 
         // Tile RAM
         for (i, tile_byte) in tile.iter_mut().enumerate() {
-            *tile_byte = memory.load(tile_start as usize + i)
+            *tile_byte = self.vram[(tile_start - 0x8000) as usize + i];
         }
 
         tile
@@ -276,8 +324,7 @@ impl Gpu {
                     let xx = x as usize + col + self.scx as usize;
                     let yy = y as usize + row + self.scy as usize;
 
-                    let index =
-                        (xx + yy * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
+                    let index = (xx + yy * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
 
                     // 4 bytes per pixel
                     self.buffer[index] = color.0;
@@ -305,8 +352,7 @@ impl Gpu {
                 let xx = x as usize + col;
                 let yy = y as usize + row;
 
-                let index =
-                    (xx + yy * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
+                let index = (xx + yy * BUFFER_WIDTH as usize) * BYTES_PER_PIXEL as usize;
 
                 // 4 bytes per pixel
                 self.buffer[index] = color.0;

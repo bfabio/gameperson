@@ -20,13 +20,10 @@ use sdl2::keyboard::Keycode;
 
 use sdl2::pixels::PixelFormatEnum;
 
-
 use cartridge::Cartridge;
 use memory::Rom;
-use memory::Vram;
 
 use input::{Input, JoypadButton};
-
 
 fn debug(cpu: &mut cpu::Cpu, mem: &memory::Memory) -> (u16, bool) {
     println!("b HEX - run until - HEX = 0 to reset");
@@ -41,7 +38,9 @@ fn debug(cpu: &mut cpu::Cpu, mem: &memory::Memory) -> (u16, bool) {
 
         let mut s = String::new();
 
-        stdin().read_line(&mut s).expect("Did not enter a correct string");
+        stdin()
+            .read_line(&mut s)
+            .expect("Did not enter a correct string");
         let v: Vec<&str> = s.split_whitespace().collect();
 
         let command = v[0];
@@ -49,7 +48,7 @@ fn debug(cpu: &mut cpu::Cpu, mem: &memory::Memory) -> (u16, bool) {
         if v.len() == 2 {
             if let Ok(addr) = u16::from_str_radix(v[1], 16) {
                 if command == "b" {
-                    return (addr, false)
+                    return (addr, false);
                 } else if command == "j" {
                     cpu.pc = addr;
                     return (0, false);
@@ -63,7 +62,7 @@ fn debug(cpu: &mut cpu::Cpu, mem: &memory::Memory) -> (u16, bool) {
             if command == "c" {
                 return (0, false);
             } else if command == "n" {
-                return (0, true)
+                return (0, true);
             }
             eprintln!("Invalid command");
         }
@@ -89,17 +88,14 @@ fn main() -> Result<(), Box<dyn error::Error>> {
         eprintln!("Can't parse cartridge header");
     }
 
-    let mut mem = memory::Memory::new();
+    let mut mem = memory::Memory::new(gpu::Gpu::new());
 
-    if let Some(boot_rom) = &args.boot_rom{
+    if let Some(boot_rom) = &args.boot_rom {
         let boot_rom = fs::read(&boot_rom)?;
         mem.map(0x0000, Box::new(Rom::new(boot_rom)));
     }
 
     mem.map(0x0000, Box::new(Rom::new(rom)));
-
-    // Video RAM
-    mem.map(0x8000, Box::new(Vram::new()));
 
     let mem = Rc::new(RefCell::new(mem));
 
@@ -108,11 +104,6 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     } else {
         cpu::Cpu::new_initialized(Rc::clone(&mem))
     };
-
-    let gpu = gpu::Gpu::new(Rc::clone(&mem));
-    let gpu = Rc::new(RefCell::new(gpu));
-
-    mem.borrow_mut().set_gpu(Rc::clone(&gpu));
 
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
@@ -200,14 +191,18 @@ fn main() -> Result<(), Box<dyn error::Error>> {
             cycles += u16::from(cpu.decode());
         }
 
-        match gpu.borrow_mut().display(&mut canvas, &mut texture, cycles) {
+        let ie = mem.borrow().ie;
+
+        let int = mem.borrow_mut().display(&mut canvas, &mut texture, cycles);
+
+        match int {
             Some(gpu::Interrupt::VBlank) => {
                 if cpu.interrupts_enabled && mem.borrow().ie & 0x1 != 0 {
                     cpu.vblank_int()
                 };
             }
             Some(gpu::Interrupt::Status) => {
-                if cpu.interrupts_enabled && mem.borrow().ie & 0x2 != 0 {
+                if cpu.interrupts_enabled && ie & 0x2 != 0 {
                     cpu.status_int();
                 }
             }
@@ -290,7 +285,6 @@ fn main() -> Result<(), Box<dyn error::Error>> {
         }
 
         if step {
-            println!("{} {}", cpu, gpu.borrow().ly);
             cpu.mem_next();
 
             let ret = debug(&mut cpu, &mem.borrow());
